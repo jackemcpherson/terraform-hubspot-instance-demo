@@ -1,0 +1,165 @@
+#!/bin/sh
+set -eu
+
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+mode=${1:-local}
+command=${2:-plan}
+engine=${ENGINE:-tofu}
+provider_repo=${HUBSPOT_PROVIDER_REPO:-"$(dirname "$root")/terraform-provider-hubspot"}
+
+case "$command" in
+  plan|apply) artifact=apply ;;
+  destroy-plan|destroy-apply) artifact=destroy ;;
+  *) artifact=scratch ;;
+esac
+bundle="$root/.demo/$mode-$engine-$artifact"
+provider_binary="$bundle/bin/terraform-provider-hubspot"
+provider_digest="$bundle/provider.sha256"
+plan="$bundle/plan.tfplan"
+
+case "$mode" in local|registry) ;; *) echo "mode must be local or registry" >&2; exit 1 ;; esac
+case "$engine" in tofu|terraform) ;; *) echo "ENGINE must be tofu or terraform" >&2; exit 1 ;; esac
+command -v "$engine" >/dev/null 2>&1 || { echo "$engine is required" >&2; exit 1; }
+
+build_local_provider() {
+  test -f "$provider_repo/go.mod" || { echo "provider repo not found at $provider_repo" >&2; exit 1; }
+  mkdir -p "$bundle/bin"
+  (
+    cd "$provider_repo"
+    CGO_ENABLED=0 GOTOOLCHAIN=local go build -trimpath \
+      -ldflags '-X main.version=0.1.0-alpha.1-local' \
+      -o "$provider_binary" .
+  )
+}
+
+verify_local_provider() {
+  test -f "$provider_binary" || { echo "the reviewed plan's provider binary is missing; run the matching plan command again" >&2; exit 1; }
+  test -f "$provider_digest" || { echo "the reviewed plan's provider digest is missing; run the matching plan command again" >&2; exit 1; }
+  (cd "$bundle" && shasum -a 256 -c "$(basename "$provider_digest")") >/dev/null || {
+    echo "the local provider differs from the binary used to create the reviewed plan" >&2
+    exit 1
+  }
+}
+
+configure_local_provider() {
+  cat >"$bundle/cli.tfrc" <<EOF
+provider_installation {
+  dev_overrides {
+    "registry.opentofu.org/jackemcpherson/hubspot" = "$bundle/bin"
+    "registry.terraform.io/jackemcpherson/hubspot" = "$bundle/bin"
+  }
+  direct {}
+}
+EOF
+  export TF_CLI_CONFIG_FILE="$bundle/cli.tfrc"
+  "$engine" -chdir="$root" get >/dev/null
+}
+
+prepare_registry_provider() {
+  unset TF_CLI_CONFIG_FILE || true
+  if [ "$command" = init ]; then
+    "$engine" -chdir="$root" init -input=false
+  else
+    test -f "$root/.terraform.lock.hcl" || {
+      echo "run '$0 registry init' and commit .terraform.lock.hcl before registry operations" >&2
+      exit 1
+    }
+    "$engine" -chdir="$root" init -input=false -lockfile=readonly
+  fi
+}
+
+load_hubspot_auth() {
+  if [ -n "${HUBSPOT_ACCESS_TOKEN:-}" ]; then
+    return
+  fi
+  command -v hs >/dev/null 2>&1 || {
+    echo "Set HUBSPOT_ACCESS_TOKEN or install and authenticate the HubSpot CLI." >&2
+    exit 1
+  }
+  command -v ruby >/dev/null 2>&1 || { echo "ruby is required to read the HubSpot CLI credential safely" >&2; exit 1; }
+  account=${HUBSPOT_CLI_ACCOUNT:-jack}
+  if ! hs api /crm/v3/properties/contacts/groups --account "$account" --json >/dev/null; then
+    echo "HubSpot CLI account '$account' is not authenticated; run: hs account auth" >&2
+    exit 1
+  fi
+  HUBSPOT_ACCESS_TOKEN=$(HUBSPOT_CLI_ACCOUNT="$account" ruby -ryaml -e '
+    data = YAML.safe_load(File.read(File.expand_path("~/.hscli/config.yml")), permitted_classes: [], aliases: false)
+    account = data.fetch("accounts").find { |candidate| candidate["name"] == ENV.fetch("HUBSPOT_CLI_ACCOUNT") || candidate["accountId"].to_s == ENV.fetch("HUBSPOT_CLI_ACCOUNT") }
+    abort "HubSpot CLI account not found" unless account
+    token = account.dig("auth", "tokenInfo", "accessToken")
+    abort "HubSpot CLI access token not found" if token.nil? || token.empty?
+    print token
+  ')
+  export HUBSPOT_ACCESS_TOKEN
+}
+
+case "$mode:$command" in
+  local:apply|local:destroy-apply)
+    verify_local_provider
+    configure_local_provider
+    ;;
+  local:fmt|local:output)
+    ;;
+  local:*)
+    case "$command" in plan|destroy-plan) rm -rf "$bundle" ;; esac
+    build_local_provider
+    configure_local_provider
+    ;;
+  registry:fmt|registry:output)
+    unset TF_CLI_CONFIG_FILE || true
+    ;;
+  registry:*)
+    prepare_registry_provider
+    ;;
+esac
+
+case "$command" in
+  fmt)
+    "$engine" -chdir="$root" fmt -check -recursive
+    ;;
+  validate)
+    "$engine" -chdir="$root" validate
+    ;;
+  test)
+    "$engine" -chdir="$root" test
+    "$engine" -chdir="$root/modules/crm-schema" test
+    ;;
+  init)
+    test "$mode" = registry || { echo "init is available in registry mode only" >&2; exit 1; }
+    ;;
+  plan)
+    load_hubspot_auth
+    mkdir -p "$bundle"
+    "$engine" -chdir="$root" plan -input=false -out="$plan"
+    if [ "$mode" = local ]; then
+      (cd "$bundle" && shasum -a 256 "bin/terraform-provider-hubspot" >"$(basename "$provider_digest")")
+    fi
+    echo "Reviewed plan saved to $plan"
+    ;;
+  apply)
+    load_hubspot_auth
+    test -f "$plan" || { echo "run '$0 $mode plan' before apply" >&2; exit 1; }
+    "$engine" -chdir="$root" apply -input=false "$plan"
+    ;;
+  output)
+    "$engine" -chdir="$root" output
+    ;;
+  destroy-plan)
+    load_hubspot_auth
+    mkdir -p "$bundle"
+    "$engine" -chdir="$root" plan -destroy -input=false -out="$plan"
+    if [ "$mode" = local ]; then
+      (cd "$bundle" && shasum -a 256 "bin/terraform-provider-hubspot" >"$(basename "$provider_digest")")
+    fi
+    echo "Reviewed destroy plan saved to $plan"
+    ;;
+  destroy-apply)
+    load_hubspot_auth
+    test -f "$plan" || { echo "run '$0 $mode destroy-plan' before destroy-apply" >&2; exit 1; }
+    "$engine" -chdir="$root" apply -input=false "$plan"
+    ;;
+  *)
+    echo "command must be fmt, validate, test, init, plan, apply, output, destroy-plan, or destroy-apply" >&2
+    exit 1
+    ;;
+esac

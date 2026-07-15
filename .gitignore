@@ -1,0 +1,7 @@
+.demo/
+.provider/
+.terraform/
+*.tfplan
+*.tfstate
+*.tfstate.*
+crash.log

@@ -1,0 +1,36 @@
+#!/bin/sh
+set -eu
+
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+PATH="$(go env GOPATH)/bin:$PATH"
+export PATH
+
+check_version() {
+  actual=$1
+  expected=$2
+  tool=$3
+  test "$actual" = "$expected" || {
+    echo "$tool $expected is required; found $actual" >&2
+    exit 1
+  }
+}
+
+check_version "$(go version | awk '{print $3}')" "go1.26.5" "Go"
+check_version "$(tofu version | awk 'NR == 1 {sub(/^v/, "", $2); print $2}')" "1.12.3" "OpenTofu"
+check_version "$(terraform version | awk 'NR == 1 {sub(/^v/, "", $2); print $2}')" "1.15.8" "Terraform"
+check_version "$(tflint --version | awk 'NR == 1 {print $3}')" "0.63.1" "TFLint"
+check_version "$(terraform-docs --version | awk 'NR == 1 {sub(/^v/, "", $3); print $3}')" "0.24.0" "terraform-docs"
+check_version "$(shellcheck --version | awk '/^version:/ {print $2}')" "0.11.0" "ShellCheck"
+check_version "$(actionlint --version | awk 'NR == 1 {sub(/^v/, "", $1); print $1}')" "1.7.12" "actionlint"
+
+sh -n "$root/scripts/demo" "$root/scripts/check"
+shellcheck "$root/scripts/demo" "$root/scripts/check"
+tflint --init --config "$root/.tflint.hcl"
+tflint --recursive --config "$root/.tflint.hcl"
+terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/crm-schema"
+ENGINE=tofu "$root/scripts/demo" local fmt
+ENGINE=tofu "$root/scripts/demo" local validate
+ENGINE=terraform "$root/scripts/demo" local validate
+ENGINE=tofu "$root/scripts/demo" local test
+ENGINE=terraform "$root/scripts/demo" local test
+actionlint

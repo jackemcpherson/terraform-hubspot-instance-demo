@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check demo configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out demo repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Check out exact Free-alpha provider source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: jackemcpherson/terraform-provider-hubspot
+          ref: 7f432e2ef9692857499cdf5770a4fef76296e8de
+          path: .provider
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: '1.26.5'
+          check-latest: false
+      - name: Set up OpenTofu
+        uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: '1.12.3'
+          tofu_wrapper: false
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: '1.15.8'
+          terraform_wrapper: false
+      - name: Install pinned HCL tooling
+        run: |
+          go install github.com/terraform-linters/tflint@v0.63.1
+          go install github.com/terraform-docs/terraform-docs@v0.24.0
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          curl --fail --show-error --silent --location \
+            --output "$RUNNER_TEMP/shellcheck.tar.xz" \
+            https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz
+          echo "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198  $RUNNER_TEMP/shellcheck.tar.xz" | sha256sum --check
+          tar --extract --xz --file "$RUNNER_TEMP/shellcheck.tar.xz" --directory "$RUNNER_TEMP"
+          sudo install "$RUNNER_TEMP/shellcheck-v0.11.0/shellcheck" /usr/local/bin/shellcheck
+      - name: Run the local-equivalent gate
+        env:
+          HUBSPOT_PROVIDER_REPO: ${{ github.workspace }}/.provider
+        run: make check
