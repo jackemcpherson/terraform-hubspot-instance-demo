@@ -141,6 +141,14 @@ case "$command" in
     test -f "$plan" || { echo "run '$0 $mode plan' before apply" >&2; exit 1; }
     "$engine" -chdir="$root" apply -input=false "$plan"
     ;;
+  verify)
+    load_hubspot_auth
+    set +e
+    "$engine" -chdir="$root" plan -detailed-exitcode -input=false -lock=false
+    result=$?
+    set -e
+    test "$result" = 0 || { echo "demo desired state has drift or pending changes" >&2; exit 1; }
+    ;;
   output)
     "$engine" -chdir="$root" output
     ;;
@@ -159,7 +167,7 @@ case "$command" in
     "$engine" -chdir="$root" apply -input=false "$plan"
     ;;
   *)
-    echo "command must be fmt, validate, test, init, plan, apply, output, destroy-plan, or destroy-apply" >&2
+    echo "command must be fmt, validate, test, init, plan, apply, verify, output, destroy-plan, or destroy-apply" >&2
     exit 1
     ;;
 esac
