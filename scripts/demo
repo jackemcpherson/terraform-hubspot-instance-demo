@@ -6,6 +6,8 @@ mode=${1:-local}
 command=${2:-plan}
 engine=${ENGINE:-tofu}
 provider_repo=${HUBSPOT_PROVIDER_REPO:-"$(dirname "$root")/terraform-provider-hubspot"}
+lock_dir=${HUBSPOT_ONE_PORTAL_LOCK_DIR:-"${TMPDIR:-/tmp}/hubspot-free-portal-${HUBSPOT_PORTAL_LOCK_ID:-default}.lock"}
+lock_acquired=false
 
 case "$command" in
   plan|apply) artifact=apply ;;
@@ -20,6 +22,16 @@ plan="$bundle/plan.tfplan"
 case "$mode" in local|registry) ;; *) echo "mode must be local or registry" >&2; exit 1 ;; esac
 case "$engine" in tofu|terraform) ;; *) echo "ENGINE must be tofu or terraform" >&2; exit 1 ;; esac
 command -v "$engine" >/dev/null 2>&1 || { echo "$engine is required" >&2; exit 1; }
+
+if [ "$mode" = local ] && [ "${HUBSPOT_PORTAL_LOCK_HELD:-}" != 1 ]; then
+  case "$command" in
+    plan|apply|destroy-plan|destroy-apply|verify)
+      mkdir "$lock_dir" 2>/dev/null || { echo "HubSpot Free portal is already in use: $lock_dir" >&2; exit 1; }
+      lock_acquired=true
+      trap 'rmdir "$lock_dir"' EXIT HUP INT TERM
+      ;;
+  esac
+fi
 
 build_local_provider() {
   test -f "$provider_repo/go.mod" || { echo "provider repo not found at $provider_repo" >&2; exit 1; }
@@ -144,7 +156,7 @@ case "$command" in
   verify)
     load_hubspot_auth
     set +e
-    "$engine" -chdir="$root" plan -detailed-exitcode -input=false -lock=false
+    "$engine" -chdir="$root" plan -detailed-exitcode -input=false
     result=$?
     set -e
     test "$result" = 0 || { echo "demo desired state has drift or pending changes" >&2; exit 1; }
