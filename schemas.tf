@@ -136,7 +136,7 @@ locals {
         ns_response_due_at = {
           label         = "Response due at"
           type          = "datetime"
-          field_type    = "datetime"
+          field_type    = "date"
           description   = "Target time for the next Northstar support response."
           display_order = 430
         }
