@@ -4,8 +4,8 @@ variable "object_type" {
   nullable    = false
 
   validation {
-    condition     = contains(["contacts", "companies", "deals"], var.object_type)
-    error_message = "object_type must be contacts, companies, or deals for this demo."
+    condition     = contains(["contacts", "companies", "deals", "tickets"], var.object_type)
+    error_message = "object_type must be contacts, companies, deals, or tickets for this demo."
   }
 }
 

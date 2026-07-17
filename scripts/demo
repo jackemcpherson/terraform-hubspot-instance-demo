@@ -7,7 +7,6 @@ command=${2:-plan}
 engine=${ENGINE:-tofu}
 provider_repo=${HUBSPOT_PROVIDER_REPO:-"$(dirname "$root")/terraform-provider-hubspot"}
 lock_dir=${HUBSPOT_ONE_PORTAL_LOCK_DIR:-"${TMPDIR:-/tmp}/hubspot-free-portal-${HUBSPOT_PORTAL_LOCK_ID:-default}.lock"}
-lock_acquired=false
 
 case "$command" in
   plan|apply) artifact=apply ;;
@@ -27,7 +26,6 @@ if [ "$mode" = local ] && [ "${HUBSPOT_PORTAL_LOCK_HELD:-}" != 1 ]; then
   case "$command" in
     plan|apply|destroy-plan|destroy-apply|verify)
       mkdir "$lock_dir" 2>/dev/null || { echo "HubSpot Free portal is already in use: $lock_dir" >&2; exit 1; }
-      lock_acquired=true
       trap 'rmdir "$lock_dir"' EXIT HUP INT TERM
       ;;
   esac

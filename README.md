@@ -5,8 +5,8 @@ This repository is a realistic consumer of
 Northstar Cloud, a fictional B2B software company, in a disposable HubSpot Free
 portal.
 
-The desired state contains three property groups and ten ordinary
-non-sensitive properties across contacts, companies, and deals. It deliberately
+The desired state contains four property groups and ten ordinary
+non-sensitive properties across contacts, companies, deals, and tickets. It deliberately
 uses only the provider's Free-alpha surface and fits HubSpot's current
 [Free limit of ten custom properties in total](https://legal.hubspot.com/hubspot-product-and-services-catalog).
 The provider does not manage CRM records, so sample contacts, companies, and
@@ -16,9 +16,10 @@ deals are outside this repository's ownership.
 
 | CRM object | Property group | Examples |
 |---|---|---|
-| Contacts | Northstar customer context | Buyer role, product interest, onboarding status, success review date |
-| Companies | Northstar account profile | Account tier, industry vertical, renewal date |
-| Deals | Northstar commercial context | Commercial motion, product line, implementation risk |
+| Contacts | Northstar customer context | Buyer role, onboarding status, success review date |
+| Companies | Northstar account profile | Account tier, renewal date |
+| Deals | Northstar commercial context | Commercial motion, implementation risk |
+| Tickets | Northstar support context | Support priority, support summary, response due at |
 
 All owned identifiers start with `ns_`. Enumeration map keys are durable CRM
 values; labels may change without renaming those keys.
@@ -51,7 +52,11 @@ make output
 Open the HubSpot property settings after apply and filter for `ns_` to show the
 managed groups and fields.
 
-To use Terraform instead of OpenTofu:
+The provider requirement deliberately omits a registry hostname: OpenTofu resolves
+`registry.opentofu.org/jackemcpherson/hubspot`, while Terraform resolves
+`registry.terraform.io/jackemcpherson/hubspot`. The local workflow maps both
+identities to the same freshly built binary, so `make check` rehearses the exact
+candidate surface under both engines. To run Terraform explicitly:
 
 ```sh
 ENGINE=terraform ./scripts/demo local plan
@@ -61,12 +66,12 @@ ENGINE=terraform ./scripts/demo local apply
 ## Demo sequence
 
 1. Show `schemas.tf`: one coherent model rendered through a reusable module.
-2. Run `make plan`: three groups and ten properties are proposed.
+2. Run `make plan`: four groups and ten properties are proposed.
 3. Run `make apply`, then show the `ns_` fields in HubSpot.
 4. Change one property label in the HubSpot UI.
 5. Run `make plan` again: the provider reports the authored drift repair.
-6. Apply that reviewed plan and run `make output` to show collection and singular
-   data-source readback.
+6. Apply that reviewed plan and run `make output` to show collection readback for
+   every standard CRM object type and singular built-in-property discovery.
 
 Cleanup is also review-first:
 
