@@ -114,6 +114,15 @@ load_hubspot_auth() {
   export HUBSPOT_ACCESS_TOKEN
 }
 
+import_if_missing() {
+  address=$1
+  id=$2
+  if "$engine" -chdir="$root" state show "$address" >/dev/null 2>&1; then
+    return
+  fi
+  "$engine" -chdir="$root" import -input=false "$address" "$id" >/dev/null
+}
+
 case "$mode:$command" in
   local:apply|local:destroy-apply)
     verify_local_provider
@@ -173,6 +182,24 @@ case "$command" in
   output)
     "$engine" -chdir="$root" output
     ;;
+  adopt)
+    test "$mode" = local || { echo "adopt is available in local mode only" >&2; exit 1; }
+    load_hubspot_auth
+    import_if_missing 'module.crm_schema["contacts"].hubspot_property_group.this' 'contacts/ns_customer_context'
+    import_if_missing 'module.crm_schema["contacts"].hubspot_property.this["ns_buyer_role"]' 'contacts/ns_buyer_role'
+    import_if_missing 'module.crm_schema["contacts"].hubspot_property.this["ns_onboarding_status"]' 'contacts/ns_onboarding_status'
+    import_if_missing 'module.crm_schema["contacts"].hubspot_property.this["ns_last_success_review"]' 'contacts/ns_last_success_review'
+    import_if_missing 'module.crm_schema["companies"].hubspot_property_group.this' 'companies/ns_account_profile'
+    import_if_missing 'module.crm_schema["companies"].hubspot_property.this["ns_account_tier"]' 'companies/ns_account_tier'
+    import_if_missing 'module.crm_schema["companies"].hubspot_property.this["ns_renewal_date"]' 'companies/ns_renewal_date'
+    import_if_missing 'module.crm_schema["deals"].hubspot_property_group.this' 'deals/ns_commercial_context'
+    import_if_missing 'module.crm_schema["deals"].hubspot_property.this["ns_commercial_motion"]' 'deals/ns_commercial_motion'
+    import_if_missing 'module.crm_schema["deals"].hubspot_property.this["ns_implementation_risk"]' 'deals/ns_implementation_risk'
+    import_if_missing 'module.crm_schema["tickets"].hubspot_property_group.this' 'tickets/ns_support_context'
+    import_if_missing 'module.crm_schema["tickets"].hubspot_property.this["ns_support_priority"]' 'tickets/ns_support_priority'
+    import_if_missing 'module.crm_schema["tickets"].hubspot_property.this["ns_support_summary"]' 'tickets/ns_support_summary'
+    import_if_missing 'module.crm_schema["tickets"].hubspot_property.this["ns_response_due_at"]' 'tickets/ns_response_due_at'
+    ;;
   destroy-plan)
     load_hubspot_auth
     mkdir -p "$bundle"
@@ -188,7 +215,7 @@ case "$command" in
     "$engine" -chdir="$root" apply -input=false "$plan"
     ;;
   *)
-    echo "command must be fmt, validate, test, init, plan, apply, verify, output, destroy-plan, or destroy-apply" >&2
+    echo "command must be fmt, validate, test, init, plan, apply, verify, output, adopt, destroy-plan, or destroy-apply" >&2
     exit 1
     ;;
 esac

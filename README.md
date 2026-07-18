@@ -125,3 +125,8 @@ Public-release checklist:
 Local state is intentional for this disposable demo portal and is ignored by
 Git. A real shared environment should use a remote, encrypted, locked backend
 with a single CI writer.
+
+Release automation can reconstruct that ignored state from the ten known
+property identities and four known group identities with `scripts/demo local
+adopt`. It verifies an empty plan before any reviewed teardown, so unmanaged or
+drifted portal configuration fails closed instead of being silently replaced.
