@@ -16,7 +16,7 @@ check_version() {
 }
 
 check_version "$(go version | awk '{print $3}')" "go1.26.5" "Go"
-check_version "$(tofu version | awk 'NR == 1 {sub(/^v/, "", $2); print $2}')" "1.12.4" "OpenTofu"
+check_version "$(tofu version | awk 'NR == 1 {sub(/^v/, "", $2); print $2}')" "1.12.3" "OpenTofu"
 check_version "$(terraform version | awk 'NR == 1 {sub(/^v/, "", $2); print $2}')" "1.15.8" "Terraform"
 check_version "$(tflint --version | awk 'NR == 1 {print $3}')" "0.63.1" "TFLint"
 check_version "$(terraform-docs --version | awk 'NR == 1 {sub(/^v/, "", $3); print $3}')" "0.24.0" "terraform-docs"

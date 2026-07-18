@@ -1,4 +1,4 @@
-.PHONY: check fmt validate test plan apply output destroy-plan destroy-apply registry-init registry-plan registry-apply registry-output registry-destroy-plan registry-destroy-apply
+.PHONY: check fmt validate test plan apply verify output destroy-plan destroy-apply registry-init registry-plan registry-apply registry-verify registry-output registry-destroy-plan registry-destroy-apply
 
 check:
 	@./scripts/check
@@ -18,6 +18,9 @@ plan:
 apply:
 	@./scripts/demo local apply
 
+verify:
+	@./scripts/demo local verify
+
 output:
 	@./scripts/demo local output
 
@@ -35,6 +38,9 @@ registry-plan:
 
 registry-apply:
 	@./scripts/demo registry apply
+
+registry-verify:
+	@./scripts/demo registry verify
 
 registry-output:
 	@./scripts/demo registry output

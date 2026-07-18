@@ -4,8 +4,8 @@ variable "object_type" {
   nullable    = false
 
   validation {
-    condition     = contains(["contacts", "companies", "deals"], var.object_type)
-    error_message = "object_type must be contacts, companies, or deals for this demo."
+    condition     = contains(["contacts", "companies", "deals", "tickets"], var.object_type)
+    error_message = "object_type must be contacts, companies, deals, or tickets for this demo."
   }
 }
 
@@ -60,7 +60,7 @@ variable "properties" {
 
   validation {
     condition     = alltrue([for property in values(var.properties) : contains(["bool", "enumeration", "date", "datetime", "string", "number"], property.type)])
-    error_message = "Every property must use a Free-alpha scalar or enumeration type."
+    error_message = "Every property must use a Free-tier scalar or enumeration type."
   }
 
   validation {

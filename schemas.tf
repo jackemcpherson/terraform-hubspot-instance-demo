@@ -20,24 +20,12 @@ locals {
             end_user           = { label = "End user", display_order = 40 }
           }
         }
-        ns_product_interest = {
-          label         = "Product interest"
-          type          = "enumeration"
-          field_type    = "checkbox"
-          description   = "Northstar products the contact is evaluating or using."
-          display_order = 120
-          options = {
-            analytics  = { label = "Analytics", display_order = 10 }
-            automation = { label = "Automation", display_order = 20 }
-            governance = { label = "Governance", display_order = 30 }
-          }
-        }
         ns_onboarding_status = {
           label         = "Onboarding status"
           type          = "enumeration"
           field_type    = "select"
           description   = "Current customer onboarding milestone."
-          display_order = 130
+          display_order = 120
           options = {
             not_started       = { label = "Not started", display_order = 10 }
             kickoff_scheduled = { label = "Kickoff scheduled", display_order = 20 }
@@ -51,7 +39,7 @@ locals {
           type          = "date"
           field_type    = "date"
           description   = "Date of the most recent customer success review."
-          display_order = 140
+          display_order = 130
         }
       }
     }
@@ -75,26 +63,12 @@ locals {
             emerging  = { label = "Emerging", display_order = 30 }
           }
         }
-        ns_industry_vertical = {
-          label         = "Industry vertical"
-          type          = "enumeration"
-          field_type    = "select"
-          description   = "Primary industry used for segmentation and reporting."
-          display_order = 220
-          options = {
-            financial_services    = { label = "Financial services", display_order = 10 }
-            healthcare            = { label = "Healthcare", display_order = 20 }
-            professional_services = { label = "Professional services", display_order = 30 }
-            technology            = { label = "Technology", display_order = 40 }
-            other                 = { label = "Other", display_order = 50 }
-          }
-        }
         ns_renewal_date = {
           label         = "Renewal date"
           type          = "date"
           field_type    = "date"
           description   = "Current contract renewal date."
-          display_order = 230
+          display_order = 220
         }
       }
     }
@@ -118,29 +92,53 @@ locals {
             renewal      = { label = "Renewal", display_order = 30 }
           }
         }
-        ns_product_line = {
-          label         = "Primary product line"
-          type          = "enumeration"
-          field_type    = "select"
-          description   = "Primary Northstar product included in the deal."
-          display_order = 320
-          options = {
-            analytics  = { label = "Analytics", display_order = 10 }
-            automation = { label = "Automation", display_order = 20 }
-            governance = { label = "Governance", display_order = 30 }
-          }
-        }
         ns_implementation_risk = {
           label         = "Implementation risk"
           type          = "enumeration"
           field_type    = "radio"
           description   = "Current delivery risk assessed during qualification."
-          display_order = 330
+          display_order = 320
           options = {
             low    = { label = "Low", display_order = 10 }
             medium = { label = "Medium", display_order = 20 }
             high   = { label = "High", display_order = 30 }
           }
+        }
+      }
+    }
+
+    tickets = {
+      group = {
+        name          = "ns_support_context"
+        label         = "Northstar support context"
+        display_order = 400
+      }
+      properties = {
+        ns_support_priority = {
+          label         = "Support priority"
+          type          = "enumeration"
+          field_type    = "radio"
+          description   = "Northstar's authored priority classification for the ticket."
+          display_order = 410
+          options = {
+            low      = { label = "Low", display_order = 10 }
+            standard = { label = "Standard", display_order = 20 }
+            urgent   = { label = "Urgent", display_order = 30 }
+          }
+        }
+        ns_support_summary = {
+          label         = "Support summary"
+          type          = "string"
+          field_type    = "textarea"
+          description   = "Short operational summary maintained by Northstar support."
+          display_order = 420
+        }
+        ns_response_due_at = {
+          label         = "Response due at"
+          type          = "datetime"
+          field_type    = "date"
+          description   = "Target time for the next Northstar support response."
+          display_order = 430
         }
       }
     }

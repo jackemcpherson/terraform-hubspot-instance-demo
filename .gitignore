@@ -1,6 +1,7 @@
 .demo/
 .provider/
 .terraform/
+/.terraform.lock.hcl
 *.tfplan
 *.tfstate
 *.tfstate.*

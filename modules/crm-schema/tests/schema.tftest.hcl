@@ -33,7 +33,7 @@ run "rejects_unsupported_object_types" {
   command = plan
 
   variables {
-    object_type = "tickets"
+    object_type = "calls"
   }
 
   expect_failures = [var.object_type]
