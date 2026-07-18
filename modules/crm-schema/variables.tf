@@ -60,7 +60,7 @@ variable "properties" {
 
   validation {
     condition     = alltrue([for property in values(var.properties) : contains(["bool", "enumeration", "date", "datetime", "string", "number"], property.type)])
-    error_message = "Every property must use a Free-alpha scalar or enumeration type."
+    error_message = "Every property must use a Free-tier scalar or enumeration type."
   }
 
   validation {

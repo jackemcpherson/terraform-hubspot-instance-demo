@@ -22,7 +22,7 @@ case "$mode" in local|registry) ;; *) echo "mode must be local or registry" >&2;
 case "$engine" in tofu|terraform) ;; *) echo "ENGINE must be tofu or terraform" >&2; exit 1 ;; esac
 command -v "$engine" >/dev/null 2>&1 || { echo "$engine is required" >&2; exit 1; }
 
-if [ "$mode" = local ] && [ "${HUBSPOT_PORTAL_LOCK_HELD:-}" != 1 ]; then
+if [ "${HUBSPOT_PORTAL_LOCK_HELD:-}" != 1 ]; then
   case "$command" in
     plan|apply|destroy-plan|destroy-apply|verify)
       mkdir "$lock_dir" 2>/dev/null || { echo "HubSpot Free portal is already in use: $lock_dir" >&2; exit 1; }
@@ -37,7 +37,7 @@ build_local_provider() {
   (
     cd "$provider_repo"
     CGO_ENABLED=0 GOTOOLCHAIN=local go build -trimpath \
-      -ldflags '-X main.version=0.1.0-alpha.1-local' \
+      -ldflags '-X main.version=0.1.0-local' \
       -o "$provider_binary" .
   )
 }
@@ -67,13 +67,24 @@ EOF
 
 prepare_registry_provider() {
   unset TF_CLI_CONFIG_FILE || true
+  working_lock="$root/.terraform.lock.hcl"
+  committed_lock="$root/locks/$engine/.terraform.lock.hcl"
   if [ "$command" = init ]; then
+    mkdir -p "$(dirname "$committed_lock")"
+    if [ -f "$committed_lock" ]; then
+      cp "$committed_lock" "$working_lock"
+    else
+      rm -f "$working_lock"
+    fi
     "$engine" -chdir="$root" init -input=false
+    cp "$working_lock" "$committed_lock"
+    echo "Review and commit $committed_lock before registry operations."
   else
-    test -f "$root/.terraform.lock.hcl" || {
-      echo "run '$0 registry init' and commit .terraform.lock.hcl before registry operations" >&2
+    test -f "$committed_lock" || {
+      echo "run '$0 registry init' and commit $committed_lock before registry operations" >&2
       exit 1
     }
+    cp "$committed_lock" "$working_lock"
     "$engine" -chdir="$root" init -input=false -lockfile=readonly
   fi
 }
@@ -155,9 +166,9 @@ case "$command" in
     load_hubspot_auth
     set +e
     "$engine" -chdir="$root" plan -detailed-exitcode -input=false
-    result=$?
+    plan_exit_code=$?
     set -e
-    test "$result" = 0 || { echo "demo desired state has drift or pending changes" >&2; exit 1; }
+    test "$plan_exit_code" = 0 || { echo "demo desired state has drift or pending changes" >&2; exit 1; }
     ;;
   output)
     "$engine" -chdir="$root" output

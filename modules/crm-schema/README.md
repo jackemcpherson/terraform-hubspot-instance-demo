@@ -10,13 +10,13 @@ are immutable CRM identities; labels remain editable presentation values.
 | Name | Version |
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.8, < 2.0 |
-| <a name="requirement_hubspot"></a> [hubspot](#requirement\_hubspot) | = 0.1.0-alpha.1 |
+| <a name="requirement_hubspot"></a> [hubspot](#requirement\_hubspot) | = 0.1.0 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_hubspot"></a> [hubspot](#provider\_hubspot) | = 0.1.0-alpha.1 |
+| <a name="provider_hubspot"></a> [hubspot](#provider\_hubspot) | = 0.1.0 |
 
 ## Modules
 
@@ -26,8 +26,8 @@ No modules.
 
 | Name | Type |
 | ---- | ---- |
-| hubspot_property.this | resource |
-| hubspot_property_group.this | resource |
+| [hubspot_property.this](https://registry.terraform.io/providers/jackemcpherson/hubspot/0.1.0/docs/resources/property) | resource |
+| [hubspot_property_group.this](https://registry.terraform.io/providers/jackemcpherson/hubspot/0.1.0/docs/resources/property_group) | resource |
 
 ## Inputs
 

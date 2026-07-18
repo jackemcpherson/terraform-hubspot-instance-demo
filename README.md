@@ -1,13 +1,13 @@
 # Northstar HubSpot CRM demo
 
 This repository is a realistic consumer of
-`jackemcpherson/hubspot` `v0.1.0-alpha.1`. It manages the CRM schema for
+`jackemcpherson/hubspot` `v0.1.0`. It manages the CRM schema for
 Northstar Cloud, a fictional B2B software company, in a disposable HubSpot Free
 portal.
 
 The desired state contains four property groups and ten ordinary
 non-sensitive properties across contacts, companies, deals, and tickets. It deliberately
-uses only the provider's Free-alpha surface and fits HubSpot's current
+uses only the provider's Free-tier surface and fits HubSpot's current
 [Free limit of ten custom properties in total](https://legal.hubspot.com/hubspot-product-and-services-catalog).
 The provider does not manage CRM records, so sample contacts, companies, and
 deals are outside this repository's ownership.
@@ -84,28 +84,43 @@ HubSpot can block property-group deletion while properties remain active. The
 provider orders property deletion before group cleanup through the module's
 resource references.
 
-## Published alpha
+## Published release
 
-After `v0.1.0-alpha.1` is available from the registry, use the exact committed
+After `v0.1.0` is available from the registry, use the exact committed
 pin rather than the local development override:
 
 ```sh
 make registry-init
-# Commit the generated .terraform.lock.hcl before proceeding.
+# Generate the independent Terraform Registry lock decision.
+ENGINE=terraform make registry-init
+# Review and commit locks/tofu/.terraform.lock.hcl and
+# locks/terraform/.terraform.lock.hcl before proceeding.
 make registry-plan
 make registry-apply
+make registry-verify
 make registry-output
 make registry-destroy-plan
 make registry-destroy-apply
 ```
 
-Publication checklist:
+After the OpenTofu destroy completes, repeat the full registry lifecycle with
+Terraform against the now-empty state:
 
-1. Create the GitHub repository for `terraform-provider-hubspot` and push the
-   `release/free-alpha` branch.
-2. Create the GitHub repository for this demo and push `main`.
-3. Publish `v0.1.0-alpha.1`, then run `make registry-init` here and commit the
-   registry-generated `.terraform.lock.hcl`.
+```sh
+ENGINE=terraform make registry-plan
+ENGINE=terraform make registry-apply
+ENGINE=terraform make registry-verify
+ENGINE=terraform make registry-output
+ENGINE=terraform make registry-destroy-plan
+ENGINE=terraform make registry-destroy-apply
+```
+
+Public-release checklist:
+
+1. Publish provider `v0.1.0` and confirm both public registries list it.
+2. Run `make registry-init` and `ENGINE=terraform make registry-init`, then
+   review each selected provider source and checksum set.
+3. Commit both registry-generated files under `locks/` before applying.
 
 Local state is intentional for this disposable demo portal and is ignored by
 Git. A real shared environment should use a remote, encrypted, locked backend
