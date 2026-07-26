@@ -20,11 +20,11 @@ jobs:
       contents: read
     steps:
       - name: Check out demo repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - name: Check out exact Free-alpha provider source
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: jackemcpherson/terraform-provider-hubspot
           ref: 7f432e2ef9692857499cdf5770a4fef76296e8de
