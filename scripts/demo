@@ -10,6 +10,8 @@ lock_dir=${HUBSPOT_ONE_PORTAL_LOCK_DIR:-"${TMPDIR:-/tmp}/hubspot-free-portal-${H
 
 case "$command" in
   plan|apply) artifact=apply ;;
+  drift|repair) artifact=drift ;;
+  refresh) artifact=refresh ;;
   destroy-plan|destroy-apply) artifact=destroy ;;
   *) artifact=scratch ;;
 esac
@@ -24,7 +26,7 @@ command -v "$engine" >/dev/null 2>&1 || { echo "$engine is required" >&2; exit 1
 
 if [ "${HUBSPOT_PORTAL_LOCK_HELD:-}" != 1 ]; then
   case "$command" in
-    plan|apply|destroy-plan|destroy-apply|verify)
+    plan|apply|drift|repair|refresh|adopt|destroy-plan|destroy-apply|verify)
       mkdir "$lock_dir" 2>/dev/null || { echo "HubSpot Free portal is already in use: $lock_dir" >&2; exit 1; }
       trap 'rmdir "$lock_dir"' EXIT HUP INT TERM
       ;;
@@ -114,17 +116,24 @@ load_hubspot_auth() {
   export HUBSPOT_ACCESS_TOKEN
 }
 
-import_if_missing() {
+adopt_resource() {
   address=$1
   id=$2
   if "$engine" -chdir="$root" state show "$address" >/dev/null 2>&1; then
-    return
+    "$engine" -chdir="$root" state rm "$address" >/dev/null
   fi
   "$engine" -chdir="$root" import -input=false "$address" "$id" >/dev/null
 }
 
+run_northstar_helper() {
+  (
+    cd "$provider_repo"
+    GOTOOLCHAIN=local go run ./cmd/northstar-lifecycle "$1"
+  )
+}
+
 case "$mode:$command" in
-  local:apply|local:destroy-apply)
+  local:apply|local:repair|local:destroy-apply)
     verify_local_provider
     configure_local_provider
     ;;
@@ -179,26 +188,59 @@ case "$command" in
     set -e
     test "$plan_exit_code" = 0 || { echo "demo desired state has drift or pending changes" >&2; exit 1; }
     ;;
+  drift)
+    load_hubspot_auth
+    mkdir -p "$bundle"
+    run_northstar_helper drift
+    set +e
+    "$engine" -chdir="$root" plan -detailed-exitcode -input=false -out="$plan"
+    plan_exit_code=$?
+    set -e
+    test "$plan_exit_code" = 2 || { echo "Northstar drift phase did not produce a repair plan" >&2; exit 1; }
+    if [ "$mode" = local ]; then
+      (cd "$bundle" && shasum -a 256 "bin/terraform-provider-hubspot" >"$(basename "$provider_digest")")
+    fi
+    ;;
+  repair)
+    load_hubspot_auth
+    test -f "$plan" || { echo "run '$0 $mode drift' before repair" >&2; exit 1; }
+    "$engine" -chdir="$root" apply -input=false "$plan"
+    "$engine" -chdir="$root" plan -detailed-exitcode -input=false >/dev/null
+    ;;
+  refresh)
+    load_hubspot_auth
+    mkdir -p "$bundle"
+    run_northstar_helper archive-for-refresh
+    set +e
+    "$engine" -chdir="$root" plan -refresh-only -detailed-exitcode -input=false -out="$plan"
+    refresh_exit_code=$?
+    set -e
+    test "$refresh_exit_code" = 2 || { echo "Northstar refresh phase did not observe archived configuration" >&2; exit 1; }
+    "$engine" -chdir="$root" apply -input=false "$plan"
+    "$engine" -chdir="$root" plan -input=false -out="$plan"
+    "$engine" -chdir="$root" apply -input=false "$plan"
+    "$engine" -chdir="$root" plan -detailed-exitcode -input=false >/dev/null
+    ;;
   output)
     "$engine" -chdir="$root" output
     ;;
   adopt)
-    test "$mode" = local || { echo "adopt is available in local mode only" >&2; exit 1; }
     load_hubspot_auth
-    import_if_missing 'module.crm_schema["contacts"].hubspot_property_group.this["ns_customer_context"]' 'contacts/ns_customer_context'
-    import_if_missing 'module.crm_schema["contacts"].hubspot_property.this["ns_buyer_role"]' 'contacts/ns_buyer_role'
-    import_if_missing 'module.crm_schema["contacts"].hubspot_property.this["ns_onboarding_status"]' 'contacts/ns_onboarding_status'
-    import_if_missing 'module.crm_schema["contacts"].hubspot_property.this["ns_last_success_review"]' 'contacts/ns_last_success_review'
-    import_if_missing 'module.crm_schema["companies"].hubspot_property_group.this["ns_account_profile"]' 'companies/ns_account_profile'
-    import_if_missing 'module.crm_schema["companies"].hubspot_property.this["ns_account_tier"]' 'companies/ns_account_tier'
-    import_if_missing 'module.crm_schema["companies"].hubspot_property.this["ns_renewal_date"]' 'companies/ns_renewal_date'
-    import_if_missing 'module.crm_schema["deals"].hubspot_property_group.this["ns_commercial_context"]' 'deals/ns_commercial_context'
-    import_if_missing 'module.crm_schema["deals"].hubspot_property.this["ns_commercial_motion"]' 'deals/ns_commercial_motion'
-    import_if_missing 'module.crm_schema["deals"].hubspot_property.this["ns_implementation_risk"]' 'deals/ns_implementation_risk'
-    import_if_missing 'module.crm_schema["tickets"].hubspot_property_group.this["ns_support_context"]' 'tickets/ns_support_context'
-    import_if_missing 'module.crm_schema["tickets"].hubspot_property.this["ns_support_priority"]' 'tickets/ns_support_priority'
-    import_if_missing 'module.crm_schema["tickets"].hubspot_property.this["ns_support_summary"]' 'tickets/ns_support_summary'
-    import_if_missing 'module.crm_schema["tickets"].hubspot_property.this["ns_response_due_at"]' 'tickets/ns_response_due_at'
+    adopt_resource 'module.crm_schema["contacts"].hubspot_property_group.this["ns_customer_context"]' 'contacts/ns_customer_context'
+    adopt_resource 'module.crm_schema["contacts"].hubspot_property.this["ns_buyer_role"]' 'contacts/ns_buyer_role'
+    adopt_resource 'module.crm_schema["contacts"].hubspot_property.this["ns_onboarding_status"]' 'contacts/ns_onboarding_status'
+    adopt_resource 'module.crm_schema["contacts"].hubspot_property.this["ns_last_success_review"]' 'contacts/ns_last_success_review'
+    adopt_resource 'module.crm_schema["companies"].hubspot_property_group.this["ns_account_profile"]' 'companies/ns_account_profile'
+    adopt_resource 'module.crm_schema["companies"].hubspot_property.this["ns_account_tier"]' 'companies/ns_account_tier'
+    adopt_resource 'module.crm_schema["companies"].hubspot_property.this["ns_renewal_date"]' 'companies/ns_renewal_date'
+    adopt_resource 'module.crm_schema["deals"].hubspot_property_group.this["ns_commercial_context"]' 'deals/ns_commercial_context'
+    adopt_resource 'module.crm_schema["deals"].hubspot_property.this["ns_commercial_motion"]' 'deals/ns_commercial_motion'
+    adopt_resource 'module.crm_schema["deals"].hubspot_property.this["ns_implementation_risk"]' 'deals/ns_implementation_risk'
+    adopt_resource 'module.crm_schema["tickets"].hubspot_property_group.this["ns_support_context"]' 'tickets/ns_support_context'
+    adopt_resource 'module.crm_schema["tickets"].hubspot_property.this["ns_support_priority"]' 'tickets/ns_support_priority'
+    adopt_resource 'module.crm_schema["tickets"].hubspot_property.this["ns_support_summary"]' 'tickets/ns_support_summary'
+    adopt_resource 'module.crm_schema["tickets"].hubspot_property.this["ns_response_due_at"]' 'tickets/ns_response_due_at'
+    "$engine" -chdir="$root" plan -detailed-exitcode -input=false >/dev/null
     ;;
   destroy-plan)
     load_hubspot_auth
@@ -215,7 +257,7 @@ case "$command" in
     "$engine" -chdir="$root" apply -input=false "$plan"
     ;;
   *)
-    echo "command must be fmt, validate, test, init, plan, apply, verify, output, adopt, destroy-plan, or destroy-apply" >&2
+    echo "command must be fmt, validate, test, init, plan, apply, verify, drift, repair, refresh, output, adopt, destroy-plan, or destroy-apply" >&2
     exit 1
     ;;
 esac
