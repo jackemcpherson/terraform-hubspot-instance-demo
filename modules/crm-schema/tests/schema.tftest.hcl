@@ -40,8 +40,28 @@ run "plans_keyed_groups_and_derived_property_kinds" {
   }
 
   assert {
+    condition = (
+      hubspot_property.this["ns_summary"].description == "" &&
+      var.properties["ns_summary"].display_order == -1 &&
+      hubspot_property.this["ns_summary"].form_field == false &&
+      hubspot_property.this["ns_summary"].hidden == false &&
+      length(hubspot_property.this["ns_summary"].options) == 0
+    )
+    error_message = "Text properties must expose the documented scalar and empty-option defaults."
+  }
+
+  assert {
     condition     = hubspot_property.this["ns_status"].type == "enumeration" && hubspot_property.this["ns_status"].field_type == "select"
     error_message = "Select kind must derive enumeration/select."
+  }
+
+  assert {
+    condition = (
+      var.properties["ns_status"].options["active"].description == "" &&
+      var.properties["ns_status"].options["active"].display_order == -1 &&
+      var.properties["ns_status"].options["active"].hidden == false
+    )
+    error_message = "Option keys must remain stable and expose the documented option defaults."
   }
 
   assert {

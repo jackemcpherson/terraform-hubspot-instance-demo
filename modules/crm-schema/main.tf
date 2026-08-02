@@ -1,4 +1,11 @@
 # Manages one CRM object's ordinary non-sensitive property schema.
+locals {
+  provider_kinds = {
+    text   = { type = "string", field_type = "text" }
+    select = { type = "enumeration", field_type = "select" }
+  }
+}
+
 resource "hubspot_property_group" "this" {
   for_each = var.groups
 
@@ -15,8 +22,8 @@ resource "hubspot_property" "this" {
   name             = each.key
   label            = each.value.label
   group_name       = hubspot_property_group.this[each.value.group].name
-  type             = each.value.kind == "select" ? "enumeration" : "string"
-  field_type       = each.value.kind == "select" ? "select" : "text"
+  type             = local.provider_kinds[each.value.kind].type
+  field_type       = local.provider_kinds[each.value.kind].field_type
   description      = each.value.description
   display_order    = each.value.display_order
   form_field       = each.value.form_field
