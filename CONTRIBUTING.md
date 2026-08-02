@@ -16,8 +16,11 @@ Then run:
 make check
 ```
 
-Every schema change must preserve the ten-property Free-tier budget, stable map
-keys, non-sensitive provider inputs, exact provider pin, generated module docs,
-and successful OpenTofu and Terraform validation. Add rejection coverage for new
-module constraints. Live plans and applies use the disposable demo portal only;
-credentials never enter HCL, logs, commits, or state.
+Every schema change must preserve stable map keys, non-sensitive inputs, the
+narrow `text`/`select` contract, and the exact provider pin. Both OpenTofu and
+Terraform validation must pass. Property count is a fixture choice, not a local
+quota policy.
+
+Add rejection coverage for new module constraints. Use only the disposable demo
+portal for live plans and applies. Do not put credentials in HCL, logs, commits,
+or state.

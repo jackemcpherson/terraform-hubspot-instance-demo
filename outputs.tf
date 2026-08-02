@@ -2,7 +2,7 @@ output "managed_schema" {
   description = "Managed HubSpot CRM groups and property names by object type."
   value = {
     for object_type, schema in local.schemas : object_type => {
-      group      = module.crm_schema[object_type].group
+      groups     = module.crm_schema[object_type].groups
       properties = module.crm_schema[object_type].properties
     }
   }

@@ -1,9 +1,11 @@
-# Manages one HubSpot CRM property's group and its ordinary custom properties.
+# Manages one CRM object's ordinary non-sensitive property schema.
 resource "hubspot_property_group" "this" {
+  for_each = var.groups
+
   object_type   = var.object_type
-  name          = var.group.name
-  label         = var.group.label
-  display_order = var.group.display_order
+  name          = each.key
+  label         = each.value.label
+  display_order = each.value.display_order
 }
 
 resource "hubspot_property" "this" {
@@ -12,13 +14,20 @@ resource "hubspot_property" "this" {
   object_type      = var.object_type
   name             = each.key
   label            = each.value.label
-  group_name       = hubspot_property_group.this.name
-  type             = each.value.type
-  field_type       = each.value.field_type
+  group_name       = hubspot_property_group.this[each.value.group].name
+  type             = each.value.kind == "select" ? "enumeration" : "string"
+  field_type       = each.value.kind == "select" ? "select" : "text"
   description      = each.value.description
   display_order    = each.value.display_order
   form_field       = each.value.form_field
   hidden           = each.value.hidden
   data_sensitivity = "non_sensitive"
   options          = each.value.options
+
+  lifecycle {
+    precondition {
+      condition     = contains(keys(var.groups), each.value.group)
+      error_message = "Every property group must reference a key in groups."
+    }
+  }
 }

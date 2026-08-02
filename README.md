@@ -1,30 +1,32 @@
-# Northstar HubSpot CRM demo
+# Northstar HubSpot CRM Demo
 
 This repository is a realistic consumer of
-`jackemcpherson/hubspot` `v0.1.0`. It manages the CRM schema for
+`jackemcpherson/hubspot` `v0.2.0`. It manages the CRM property schema for
 Northstar Cloud, a fictional B2B software company, in a disposable HubSpot Free
 portal.
 
-The desired state contains four property groups and ten ordinary
-non-sensitive properties across contacts, companies, deals, and tickets. It deliberately
-uses only the provider's Free-tier surface and fits HubSpot's current
-[Free limit of ten custom properties in total](https://legal.hubspot.com/hubspot-product-and-services-catalog).
+The desired state contains four property groups and ten non-sensitive
+properties across contacts, companies, deals, and tickets. Ten is a deliberate
+fixture size, not provider admission control or a claimed API-created-property
+limit. Remote create responses remain authoritative.
 The provider does not manage CRM records, so sample contacts, companies, and
 deals are outside this repository's ownership.
 
-## Managed model
+---
 
-| CRM object | Property group | Examples |
-|---|---|---|
-| Contacts | Northstar customer context | Buyer role, onboarding status, success review date |
-| Companies | Northstar account profile | Account tier, renewal date |
-| Deals | Northstar commercial context | Commercial motion, implementation risk |
-| Tickets | Northstar support context | Support priority, support summary, response due at |
+## Managed Model
+
+| CRM object | Property group               | Examples                                           |
+| ---------- | ---------------------------- | -------------------------------------------------- |
+| Contacts   | Northstar customer context   | Buyer role, onboarding status, success review date |
+| Companies  | Northstar account profile    | Account tier, renewal date                         |
+| Deals      | Northstar commercial context | Commercial motion, implementation risk             |
+| Tickets    | Northstar support context    | Support priority, support summary, response due at |
 
 All owned identifiers start with `ns_`. Enumeration map keys are durable CRM
-values; labels may change without renaming those keys.
+values. Labels can change without a key change.
 
-## Rehearse against the local provider
+## Rehearse Against the Local Provider
 
 The default workflow builds the provider from the sibling
 `../terraform-provider-hubspot` repository. It writes the development override,
@@ -48,30 +50,32 @@ make apply
 make output
 ```
 
-`make apply` consumes the exact plan created by `make plan`; it does not re-plan.
+`make apply` consumes the exact plan created by `make plan`. It does not create
+a replacement plan.
 Open the HubSpot property settings after apply and filter for `ns_` to show the
 managed groups and fields.
 
-The provider requirement deliberately omits a registry hostname: OpenTofu resolves
-`registry.opentofu.org/jackemcpherson/hubspot`, while Terraform resolves
+The provider requirement omits a registry hostname. OpenTofu resolves
+`registry.opentofu.org/jackemcpherson/hubspot`. Terraform resolves
 `registry.terraform.io/jackemcpherson/hubspot`. The local workflow maps both
-identities to the same freshly built binary, so `make check` rehearses the exact
-candidate surface under both engines. To run Terraform explicitly:
+identities to the same new binary. The `make check` command checks that binary
+with both engines. To run Terraform explicitly:
 
 ```sh
 ENGINE=terraform ./scripts/demo local plan
 ENGINE=terraform ./scripts/demo local apply
 ```
 
-## Demo sequence
+## Demo Sequence
 
-1. Show `schemas.tf`: one coherent model rendered through a reusable module.
-2. Run `make plan`: four groups and ten properties are proposed.
-3. Run `make apply`, then show the `ns_` fields in HubSpot.
-4. Change one property label in the HubSpot UI.
-5. Run `make plan` again: the provider reports the authored drift repair.
-6. Apply that reviewed plan and run `make output` to show collection readback for
-   every standard CRM object type and singular built-in-property discovery.
+1. Open `schemas.tf` to show the model and reusable module.
+2. Run `make plan` to propose four groups and ten properties.
+3. Run `make apply` to create the planned schema.
+4. Open the HubSpot property settings and filter for `ns_`.
+5. Change one property label in the HubSpot interface.
+6. Run `make plan` again to show the authored drift repair.
+7. Apply the reviewed repair plan.
+8. Run `make output` to show the standard CRM object types.
 
 Cleanup is also review-first:
 
@@ -84,9 +88,9 @@ HubSpot can block property-group deletion while properties remain active. The
 provider orders property deletion before group cleanup through the module's
 resource references.
 
-## Published release
+## Published Release
 
-After `v0.1.0` is available from the registry, use the exact committed
+After `v0.2.0` is available from the registry, use the exact committed
 pin rather than the local development override:
 
 ```sh
@@ -115,18 +119,17 @@ ENGINE=terraform make registry-destroy-plan
 ENGINE=terraform make registry-destroy-apply
 ```
 
-Public-release checklist:
+### Release Checklist
 
-1. Publish provider `v0.1.0` and confirm both public registries list it.
+1. Publish provider `v0.2.0` and confirm both public registries list it.
 2. Run `make registry-init` and `ENGINE=terraform make registry-init`, then
    review each selected provider source and checksum set.
 3. Commit both registry-generated files under `locks/` before applying.
 
-Local state is intentional for this disposable demo portal and is ignored by
-Git. A real shared environment should use a remote, encrypted, locked backend
-with a single CI writer.
+Git ignores local state for this disposable demo portal. A shared environment
+should use a remote, encrypted, locked backend with one CI writer.
 
-Release automation can reconstruct that ignored state from the ten known
-property identities and four known group identities with `scripts/demo local
-adopt`. It verifies an empty plan before any reviewed teardown, so unmanaged or
-drifted portal configuration fails closed instead of being silently replaced.
+Release automation can reconstruct local state with `scripts/demo local adopt`.
+It uses the ten known properties and four known groups. The command requires an
+empty plan before a reviewed teardown. Unmanaged or drifted configuration stops
+the process.

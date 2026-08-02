@@ -37,7 +37,7 @@ build_local_provider() {
   (
     cd "$provider_repo"
     CGO_ENABLED=0 GOTOOLCHAIN=local go build -trimpath \
-      -ldflags '-X main.version=0.1.0-local' \
+      -ldflags '-X main.version=0.2.0-local' \
       -o "$provider_binary" .
   )
 }
@@ -185,17 +185,17 @@ case "$command" in
   adopt)
     test "$mode" = local || { echo "adopt is available in local mode only" >&2; exit 1; }
     load_hubspot_auth
-    import_if_missing 'module.crm_schema["contacts"].hubspot_property_group.this' 'contacts/ns_customer_context'
+    import_if_missing 'module.crm_schema["contacts"].hubspot_property_group.this["ns_customer_context"]' 'contacts/ns_customer_context'
     import_if_missing 'module.crm_schema["contacts"].hubspot_property.this["ns_buyer_role"]' 'contacts/ns_buyer_role'
     import_if_missing 'module.crm_schema["contacts"].hubspot_property.this["ns_onboarding_status"]' 'contacts/ns_onboarding_status'
     import_if_missing 'module.crm_schema["contacts"].hubspot_property.this["ns_last_success_review"]' 'contacts/ns_last_success_review'
-    import_if_missing 'module.crm_schema["companies"].hubspot_property_group.this' 'companies/ns_account_profile'
+    import_if_missing 'module.crm_schema["companies"].hubspot_property_group.this["ns_account_profile"]' 'companies/ns_account_profile'
     import_if_missing 'module.crm_schema["companies"].hubspot_property.this["ns_account_tier"]' 'companies/ns_account_tier'
     import_if_missing 'module.crm_schema["companies"].hubspot_property.this["ns_renewal_date"]' 'companies/ns_renewal_date'
-    import_if_missing 'module.crm_schema["deals"].hubspot_property_group.this' 'deals/ns_commercial_context'
+    import_if_missing 'module.crm_schema["deals"].hubspot_property_group.this["ns_commercial_context"]' 'deals/ns_commercial_context'
     import_if_missing 'module.crm_schema["deals"].hubspot_property.this["ns_commercial_motion"]' 'deals/ns_commercial_motion'
     import_if_missing 'module.crm_schema["deals"].hubspot_property.this["ns_implementation_risk"]' 'deals/ns_implementation_risk'
-    import_if_missing 'module.crm_schema["tickets"].hubspot_property_group.this' 'tickets/ns_support_context'
+    import_if_missing 'module.crm_schema["tickets"].hubspot_property_group.this["ns_support_context"]' 'tickets/ns_support_context'
     import_if_missing 'module.crm_schema["tickets"].hubspot_property.this["ns_support_priority"]' 'tickets/ns_support_priority'
     import_if_missing 'module.crm_schema["tickets"].hubspot_property.this["ns_support_summary"]' 'tickets/ns_support_summary'
     import_if_missing 'module.crm_schema["tickets"].hubspot_property.this["ns_response_due_at"]' 'tickets/ns_response_due_at'
