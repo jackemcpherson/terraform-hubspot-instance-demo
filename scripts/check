@@ -28,9 +28,14 @@ shellcheck "$root/scripts/demo" "$root/scripts/check"
 tflint --init --config "$root/.tflint.hcl"
 tflint --recursive --config "$root/.tflint.hcl"
 terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/crm-schema"
+terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/form-definition"
 ENGINE=tofu "$root/scripts/demo" local fmt
 ENGINE=tofu "$root/scripts/demo" local validate
 ENGINE=terraform "$root/scripts/demo" local validate
+for engine in tofu terraform; do
+  TF_CLI_CONFIG_FILE="$root/.demo/local-$engine-scratch/cli.tfrc" "$engine" -chdir="$root/examples/form-definition" get >/dev/null
+  TF_CLI_CONFIG_FILE="$root/.demo/local-$engine-scratch/cli.tfrc" "$engine" -chdir="$root/examples/form-definition" validate
+done
 ENGINE=tofu "$root/scripts/demo" local test
 ENGINE=terraform "$root/scripts/demo" local test
 actionlint
