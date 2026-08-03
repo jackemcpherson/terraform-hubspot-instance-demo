@@ -94,7 +94,7 @@ retained as an Archived tombstone rather than purged or restored.
 
 ## Published Release
 
-After `v0.2.0` is available from the registry, use the exact committed
+After `v0.3.0` is available from the registry, use the exact committed
 pin rather than the local development override:
 
 ```sh
@@ -125,7 +125,7 @@ ENGINE=terraform make registry-destroy-apply
 
 ### Release Checklist
 
-1. Publish provider `v0.2.0` and confirm both public registries list it.
+1. Publish provider `v0.3.0` and confirm both public registries list it.
 2. Run `make registry-init` and `ENGINE=terraform make registry-init`, then
    review each selected provider source and checksum set.
 3. Commit both registry-generated files under `locks/` before applying.

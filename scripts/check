@@ -50,7 +50,7 @@ grep -q 'HUBSPOT_DEMO_EXPECTED_COMMIT' "$root/scripts/demo" || { echo "Northstar
 for engine in tofu terraform; do
   lock="$root/locks/$engine/.terraform.lock.hcl"
   test -f "$lock" || { echo "committed $engine registry lock is missing" >&2; exit 1; }
-  grep -q 'version     = "0.2.0"' "$lock"
+  grep -q 'version     = "0.3.0"' "$lock"
   test "$(grep -c '"h1:' "$lock")" = 13 || { echo "$engine registry lock must cover all 13 release platforms" >&2; exit 1; }
 done
 grep -q 'provider "registry.opentofu.org/jackemcpherson/hubspot"' "$root/locks/tofu/.terraform.lock.hcl"
