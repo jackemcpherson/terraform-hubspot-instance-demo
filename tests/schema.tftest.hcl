@@ -1,4 +1,10 @@
 mock_provider "hubspot" {
+  mock_resource "hubspot_form_definition" {
+    defaults = {
+      id = "00000000-0000-4000-8000-000000000001"
+    }
+  }
+
   mock_data "hubspot_property_definition" {
     defaults = {
       id         = "contacts/email"
@@ -14,8 +20,8 @@ mock_provider "hubspot" {
   }
 }
 
-run "plans_cumulative_crm_property_schema" {
-  command = plan
+run "applies_cumulative_configuration" {
+  command = apply
 
   assert {
     condition     = toset(keys(local.schemas)) == toset(["contacts", "companies", "deals", "tickets"])
@@ -35,5 +41,10 @@ run "plans_cumulative_crm_property_schema" {
   assert {
     condition     = length(module.crm_schema["contacts"].properties) == 3 && length(module.crm_schema["tickets"].groups) == 1
     error_message = "Module outputs must expose stable property and group identities."
+  }
+
+  assert {
+    condition     = keys(module.forms.ids) == ["contact_us"] && output.northstar_contact_form_id == module.forms.ids["contact_us"]
+    error_message = "The cumulative demo must expose the generated Form ID through its stable module key."
   }
 }

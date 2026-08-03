@@ -26,3 +26,13 @@ output "builtin_email_property" {
     field_type = data.hubspot_property_definition.builtin_email.field_type
   }
 }
+
+output "northstar_form_ids" {
+  description = "Generated HubSpot form IDs keyed by stable local form identity."
+  value       = module.forms.ids
+}
+
+output "northstar_contact_form_id" {
+  description = "Generated identity of the stable-keyed Northstar contact form."
+  value       = module.forms.ids["contact_us"]
+}

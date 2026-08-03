@@ -1,12 +1,13 @@
 # Northstar HubSpot CRM Demo
 
 This repository is a realistic consumer of
-`jackemcpherson/hubspot` `v0.2.0`. It manages the CRM property schema for
-Northstar Cloud, a fictional B2B software company, in a disposable HubSpot Free
-portal.
+`jackemcpherson/hubspot` `v0.3.0`. It manages the CRM property schema and one
+stable-keyed contact Form definition for Northstar Cloud, a fictional B2B
+software company, in a disposable HubSpot Free portal.
 
-The desired state contains four property groups and ten non-sensitive
-properties across contacts, companies, deals, and tickets. Ten is a deliberate
+The desired state contains four property groups, ten non-sensitive properties
+across contacts, companies, deals, and tickets, and one `ns_contact_us` form.
+Ten properties is a deliberate
 fixture size, not provider admission control or a claimed API-created-property
 limit. Remote create responses remain authoritative.
 The provider does not manage CRM records, so sample contacts, companies, and
@@ -24,7 +25,9 @@ deals are outside this repository's ownership.
 | Tickets    | Northstar support context    | Support priority, support summary, response due at |
 
 All owned identifiers start with `ns_`. Enumeration map keys are durable CRM
-values. Labels can change without a key change.
+values. The form's `contact_us` map key is its durable local address, while the
+module output exposes its generated HubSpot ID for exact import and verification.
+Labels and remote names can change without a key change.
 
 ## Rehearse Against the Local Provider
 
@@ -52,8 +55,8 @@ make output
 
 `make apply` consumes the exact plan created by `make plan`. It does not create
 a replacement plan.
-Open the HubSpot property settings after apply and filter for `ns_` to show the
-managed groups and fields.
+Open the HubSpot property and Forms settings after apply and filter for `ns_` to
+show the cumulative managed configuration.
 
 The provider requirement omits a registry hostname. OpenTofu resolves
 `registry.opentofu.org/jackemcpherson/hubspot`. Terraform resolves
@@ -69,9 +72,9 @@ ENGINE=terraform ./scripts/demo local apply
 ## Demo Sequence
 
 1. Open `schemas.tf` to show the model and reusable module.
-2. Run `make plan` to propose four groups and ten properties.
-3. Run `make apply` to create the planned schema.
-4. Open the HubSpot property settings and filter for `ns_`.
+2. Run `make plan` to propose four groups, ten properties, and one contact form.
+3. Run `make apply` to create the planned cumulative configuration.
+4. Open the HubSpot property and Forms settings and filter for `ns_`.
 5. Change one property label in the HubSpot interface.
 6. Run `make plan` again to show the authored drift repair.
 7. Apply the reviewed repair plan.
@@ -86,7 +89,8 @@ make destroy-apply
 
 HubSpot can block property-group deletion while properties remain active. The
 provider orders property deletion before group cleanup through the module's
-resource references.
+resource references. Form teardown archives the exact generated identity; it is
+retained as an Archived tombstone rather than purged or restored.
 
 ## Published Release
 
@@ -130,6 +134,8 @@ Git ignores local state for this disposable demo portal. A shared environment
 should use a remote, encrypted, locked backend with one CI writer.
 
 Release automation can reconstruct local state with `scripts/demo local adopt`.
-It uses the ten known properties and four known groups. The command requires an
-empty plan before a reviewed teardown. Unmanaged or drifted configuration stops
-the process.
+It uses the ten known properties and four known groups, and imports the Form by
+the generated ID from current state output. When no state output exists, set the
+protected `HUBSPOT_NORTHSTAR_FORM_ID`; the script never discovers a Form by its
+remote name. The command requires an empty plan before a reviewed teardown.
+Unmanaged or drifted configuration stops the process.

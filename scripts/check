@@ -40,6 +40,13 @@ ENGINE=tofu "$root/scripts/demo" local test
 ENGINE=terraform "$root/scripts/demo" local test
 actionlint
 
+grep -q 'version = "= 0.3.0"' "$root/versions.tf" || { echo "the cumulative demo must pin provider v0.3.0" >&2; exit 1; }
+grep -q 'module "forms"' "$root/forms.tf" || { echo "the cumulative demo is missing its Forms module" >&2; exit 1; }
+grep -q 'northstar_contact_form_id' "$root/outputs.tf" || { echo "the cumulative demo is missing its generated Form ID output" >&2; exit 1; }
+grep -q 'module.forms.hubspot_form_definition.this' "$root/scripts/demo" || { echo "Northstar lifecycle skipped exact-ID Form adoption" >&2; exit 1; }
+grep -q 'verify-form-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped terminal Form cleanup proof" >&2; exit 1; }
+grep -q 'HUBSPOT_DEMO_EXPECTED_COMMIT' "$root/scripts/demo" || { echo "Northstar lifecycle skipped exact demo provenance" >&2; exit 1; }
+
 for engine in tofu terraform; do
   lock="$root/locks/$engine/.terraform.lock.hcl"
   test -f "$lock" || { echo "committed $engine registry lock is missing" >&2; exit 1; }
