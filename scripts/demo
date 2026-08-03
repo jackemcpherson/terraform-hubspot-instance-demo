@@ -6,7 +6,7 @@ mode=${1:-local}
 command=${2:-plan}
 engine=${ENGINE:-tofu}
 provider_repo=${HUBSPOT_PROVIDER_REPO:-"$(dirname "$root")/terraform-provider-hubspot"}
-lock_dir=${HUBSPOT_ONE_PORTAL_LOCK_DIR:-"${TMPDIR:-/tmp}/hubspot-free-portal-${HUBSPOT_PORTAL_LOCK_ID:-default}.lock"}
+lock_dir=${HUBSPOT_ONE_PORTAL_LOCK_DIR:-"${TMPDIR:-/tmp}/hubspot-free-portal-${HUBSPOT_PORTAL_LOCK_ID:-free-configuration}.lock"}
 
 case "$command" in
   plan|apply) artifact=apply ;;
