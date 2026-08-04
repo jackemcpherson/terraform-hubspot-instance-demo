@@ -1,9 +1,12 @@
 # Northstar HubSpot CRM Demo
 
 This repository is a realistic consumer of
-`jackemcpherson/hubspot` `v0.3.0`. It manages the CRM property schema and one
-stable-keyed contact Form definition for Northstar Cloud, a fictional B2B
-software company, in a disposable HubSpot Free portal.
+`jackemcpherson/hubspot` `v0.4.0`. Its cumulative root manages the CRM property
+schema and one stable-keyed contact Form definition for Northstar Cloud, a
+fictional B2B software company, in a disposable HubSpot Free portal. The local
+`files-configuration` module and executable composition example prepare the
+Files configuration slice without claiming that the cumulative live journey has
+run before its protected qualification step.
 
 The desired state contains four property groups, ten non-sensitive properties
 across contacts, companies, deals, and tickets, and one `ns_contact_us` form.
@@ -28,6 +31,11 @@ All owned identifiers start with `ns_`. Enumeration map keys are durable CRM
 values. The form's `contact_us` map key is its durable local address, while the
 module output exposes its generated HubSpot ID for exact import and verification.
 Labels and remote names can change without a key change.
+
+The Files example under `examples/files-configuration` composes two hierarchy
+levels through generated `folder_ids`, with one private file and one public
+non-indexable file. Source paths are sensitive, reviewed SHA-256 values bind the
+bytes, and ordinary references produce file-first and leaf-first teardown edges.
 
 ## Rehearse Against the Local Provider
 
@@ -90,11 +98,14 @@ make destroy-apply
 HubSpot can block property-group deletion while properties remain active. The
 provider orders property deletion before group cleanup through the module's
 resource references. Form teardown archives the exact generated identity; it is
-retained as an Archived tombstone rather than purged or restored.
+retained as an Archived tombstone rather than purged or restored. The Files
+composition example removes Managed files before referenced folders and folders
+leaf-first; normal deletion proves active absence but leaves HubSpot-managed
+Trash retention in place.
 
 ## Published Release
 
-After `v0.2.0` is available from the registry, use the exact committed
+After `v0.4.0` is available from both registries, use the exact committed
 pin rather than the local development override:
 
 ```sh
@@ -125,7 +136,7 @@ ENGINE=terraform make registry-destroy-apply
 
 ### Release Checklist
 
-1. Publish provider `v0.2.0` and confirm both public registries list it.
+1. Publish provider `v0.4.0` and confirm both public registries list it.
 2. Run `make registry-init` and `ENGINE=terraform make registry-init`, then
    review each selected provider source and checksum set.
 3. Commit both registry-generated files under `locks/` before applying.

@@ -193,6 +193,8 @@ case "$command" in
   test)
     "$engine" -chdir="$root" test
     "$engine" -chdir="$root/modules/crm-schema" test
+    "$engine" -chdir="$root/modules/files-configuration" test
+    "$engine" -chdir="$root/examples/files-configuration" test
     ;;
   init)
     test "$mode" = registry || { echo "init is available in registry mode only" >&2; exit 1; }

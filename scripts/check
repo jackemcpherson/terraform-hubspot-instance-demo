@@ -29,18 +29,28 @@ tflint --init --config "$root/.tflint.hcl"
 tflint --recursive --config "$root/.tflint.hcl"
 terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/crm-schema"
 terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/form-definition"
+terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/files-configuration"
 ENGINE=tofu "$root/scripts/demo" local fmt
 ENGINE=tofu "$root/scripts/demo" local validate
 ENGINE=terraform "$root/scripts/demo" local validate
 for engine in tofu terraform; do
   TF_CLI_CONFIG_FILE="$root/.demo/local-$engine-scratch/cli.tfrc" "$engine" -chdir="$root/examples/form-definition" get >/dev/null
   TF_CLI_CONFIG_FILE="$root/.demo/local-$engine-scratch/cli.tfrc" "$engine" -chdir="$root/examples/form-definition" validate
+  TF_CLI_CONFIG_FILE="$root/.demo/local-$engine-scratch/cli.tfrc" "$engine" -chdir="$root/examples/files-configuration" get >/dev/null
+  TF_CLI_CONFIG_FILE="$root/.demo/local-$engine-scratch/cli.tfrc" "$engine" -chdir="$root/examples/files-configuration" validate
+
+  # These create dependencies are reversed by both engines during destroy: files
+  # precede their folders, and the composed leaf level precedes its parent.
+  graph=$(TF_CLI_CONFIG_FILE="$root/.demo/local-$engine-scratch/cli.tfrc" "$engine" -chdir="$root/examples/files-configuration" graph -type=plan)
+  printf '%s\n' "$graph" | grep -Fq 'module.files_root.hubspot_file.this (expand)" -> "[root] module.files_root.hubspot_file_folder.this (expand)'
+  printf '%s\n' "$graph" | grep -Fq 'module.files_brand.hubspot_file.this (expand)" -> "[root] module.files_brand.hubspot_file_folder.this (expand)'
+  printf '%s\n' "$graph" | grep -Eq 'module.files_brand.var.parent_folder_id \(expand(, input)?\)" -> "\[root\] module.files_root.output.folder_ids \(expand\)'
 done
 ENGINE=tofu "$root/scripts/demo" local test
 ENGINE=terraform "$root/scripts/demo" local test
 actionlint
 
-grep -q 'version = "= 0.3.0"' "$root/versions.tf" || { echo "the cumulative demo must pin provider v0.3.0" >&2; exit 1; }
+grep -q 'version = "= 0.4.0"' "$root/versions.tf" || { echo "the cumulative demo must pin provider v0.4.0" >&2; exit 1; }
 grep -q 'module "forms"' "$root/forms.tf" || { echo "the cumulative demo is missing its Forms module" >&2; exit 1; }
 grep -q 'northstar_contact_form_id' "$root/outputs.tf" || { echo "the cumulative demo is missing its generated Form ID output" >&2; exit 1; }
 grep -q 'module.forms.hubspot_form_definition.this' "$root/scripts/demo" || { echo "Northstar lifecycle skipped exact-ID Form adoption" >&2; exit 1; }
