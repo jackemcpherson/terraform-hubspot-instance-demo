@@ -2,6 +2,7 @@
 set -eu
 
 source_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+grep -q -- '-X main.version=0.4.0-local' "$source_root/scripts/demo"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 root="$tmp/demo"
