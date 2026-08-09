@@ -1,0 +1,85 @@
+#!/bin/sh
+set -eu
+
+source_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+root="$tmp/demo"
+bin="$tmp/bin"
+log="$tmp/calls"
+mkdir -p "$root/scripts" "$root/locks/tofu" "$bin"
+cp "$source_root/scripts/demo" "$root/scripts/demo"
+chmod +x "$root/scripts/demo"
+printf '%s\n' 'provider lock' >"$root/locks/tofu/.terraform.lock.hcl"
+
+cat >"$bin/tofu" <<'EOF'
+#!/bin/sh
+set -eu
+chdir=${1#-chdir=}
+shift
+printf 'engine:%s\n' "$*" >>"$CALL_LOG"
+for argument in "$@"; do
+  case "$argument" in -out=*) : >"${argument#-out=}" ;; esac
+done
+case "$*" in
+  'output -raw northstar_contact_form_id') printf '%s\n' 00000000-0000-4000-8000-000000000001 ;;
+  'output -raw northstar_brand_folder_id') printf '%s\n' 10001 ;;
+  'output -raw northstar_downloads_folder_id') printf '%s\n' 10002 ;;
+  'output -raw northstar_private_file_id') printf '%s\n' 20001 ;;
+  'output -raw northstar_public_file_id') printf '%s\n' 20002 ;;
+  'plan -detailed-exitcode -input=false'|'plan -detailed-exitcode -input=false -out='*) exit "${PLAN_EXIT:-0}" ;;
+  'plan -refresh-only -detailed-exitcode -input=false -out='*) exit 2 ;;
+  'show -json '*) printf '%s\n' '{"addresses":["module.forms.hubspot_form_definition.this","module.files_root.hubspot_file.this","module.files_root.hubspot_file_folder.this","module.files_brand.hubspot_file.this","module.files_brand.hubspot_file_folder.this"]}' ;;
+esac
+EOF
+chmod +x "$bin/tofu"
+
+cat >"$tmp/helper" <<'EOF'
+#!/bin/sh
+set -eu
+printf 'helper:%s\n' "$*" >>"$CALL_LOG"
+case "$1" in
+  verify-form-terminal) printf '%s\n' '{"terminal":"archived","active_owned_forms":0,"cleanup":"passed"}' ;;
+  verify-files-terminal) printf '%s\n' '{"active_owned_files":0,"active_owned_folders":0,"cleanup":"passed"}' ;;
+esac
+EOF
+chmod +x "$tmp/helper"
+
+run() {
+  PATH="$bin:$PATH" CALL_LOG="$log" HUBSPOT_ACCESS_TOKEN=test HUBSPOT_NORTHSTAR_HELPER_SCRIPT="$tmp/helper" \
+    ENGINE=tofu "$root/scripts/demo" registry "$1"
+}
+
+run verify
+grep -q '^helper:verify-files 10001 10002 20001 20002$' "$log"
+
+: >"$log"
+PLAN_EXIT=2 run drift
+grep -q '^helper:drift 00000000-0000-4000-8000-000000000001$' "$log"
+grep -q '^helper:drift-files 20002$' "$log"
+unset PLAN_EXIT
+
+: >"$log"
+run refresh
+grep -q '^helper:archive-for-refresh$' "$log"
+grep -q '^helper:drift-folder-path 10001 10002$' "$log"
+grep -q '^helper:verify-files 10001 10002 20001 20002$' "$log"
+
+: >"$log"
+run adopt
+grep -q '^engine:import -input=false module.files_root.hubspot_file_folder.this\["brand"\] 10001$' "$log"
+grep -q '^engine:import -input=false module.files_brand.hubspot_file_folder.this\["downloads"\] 10002$' "$log"
+grep -q '^engine:import -input=false module.files_root.hubspot_file.this\["private_readme"\] 20001$' "$log"
+grep -q '^engine:import -input=false module.files_brand.hubspot_file.this\["public_logo"\] 20002$' "$log"
+
+: >"$log"
+run destroy-plan
+run destroy-apply
+grep -q '^helper:verify-files-terminal 10001 10002 20001 20002$' "$log"
+test -s "$root/.demo/registry-tofu-destroy/files-terminal.json"
+if grep -Eq '10001|10002|20001|20002' "$root/.demo/registry-tofu-destroy/files-terminal.json"; then
+  echo 'Files terminal evidence exposed raw identities' >&2
+  exit 1
+fi
+
+echo 'Northstar demo lifecycle contract tests passed'

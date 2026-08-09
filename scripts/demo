@@ -138,10 +138,48 @@ adopt_resource() {
 }
 
 run_northstar_helper() {
+  if [ -n "${HUBSPOT_NORTHSTAR_HELPER_SCRIPT:-}" ]; then
+    "$HUBSPOT_NORTHSTAR_HELPER_SCRIPT" "$@"
+    return
+  fi
   (
     cd "$provider_repo"
     GOTOOLCHAIN=local go run ./cmd/northstar-lifecycle "$@"
   )
+}
+
+northstar_numeric_id() {
+  output_name=$1
+  fallback_name=$2
+  if id=$("$engine" -chdir="$root" output -raw "$output_name" 2>/dev/null) && printf '%s\n' "$id" | grep -Eq '^[1-9][0-9]*$'; then
+    printf '%s\n' "$id"
+    return
+  fi
+  case "$fallback_name" in
+    HUBSPOT_NORTHSTAR_BRAND_FOLDER_ID) id=${HUBSPOT_NORTHSTAR_BRAND_FOLDER_ID:-} ;;
+    HUBSPOT_NORTHSTAR_DOWNLOADS_FOLDER_ID) id=${HUBSPOT_NORTHSTAR_DOWNLOADS_FOLDER_ID:-} ;;
+    HUBSPOT_NORTHSTAR_PRIVATE_FILE_ID) id=${HUBSPOT_NORTHSTAR_PRIVATE_FILE_ID:-} ;;
+    HUBSPOT_NORTHSTAR_PUBLIC_FILE_ID) id=${HUBSPOT_NORTHSTAR_PUBLIC_FILE_ID:-} ;;
+    *) echo "unsupported Northstar Files fallback" >&2; exit 1 ;;
+  esac
+  printf '%s\n' "$id" | grep -Eq '^[1-9][0-9]*$' || {
+    echo "$fallback_name is required to adopt the generated Files identity without lookup" >&2
+    exit 1
+  }
+  printf '%s\n' "$id"
+}
+
+northstar_brand_folder_id() { northstar_numeric_id northstar_brand_folder_id HUBSPOT_NORTHSTAR_BRAND_FOLDER_ID; }
+northstar_downloads_folder_id() { northstar_numeric_id northstar_downloads_folder_id HUBSPOT_NORTHSTAR_DOWNLOADS_FOLDER_ID; }
+northstar_private_file_id() { northstar_numeric_id northstar_private_file_id HUBSPOT_NORTHSTAR_PRIVATE_FILE_ID; }
+northstar_public_file_id() { northstar_numeric_id northstar_public_file_id HUBSPOT_NORTHSTAR_PUBLIC_FILE_ID; }
+
+verify_northstar_files() {
+  run_northstar_helper verify-files \
+    "$(northstar_brand_folder_id)" \
+    "$(northstar_downloads_folder_id)" \
+    "$(northstar_private_file_id)" \
+    "$(northstar_public_file_id)"
 }
 
 northstar_form_id() {
@@ -221,12 +259,14 @@ case "$command" in
     set -e
     test "$plan_exit_code" = 0 || { echo "demo desired state has drift or pending changes" >&2; exit 1; }
     require_form_output
+    verify_northstar_files
     ;;
   drift)
     load_hubspot_auth
     mkdir -p "$bundle"
     form_id=$(northstar_form_id)
     run_northstar_helper drift "$form_id"
+    run_northstar_helper drift-files "$(northstar_public_file_id)"
     set +e
     "$engine" -chdir="$root" plan -detailed-exitcode -input=false -out="$plan"
     plan_exit_code=$?
@@ -234,6 +274,10 @@ case "$command" in
     test "$plan_exit_code" = 2 || { echo "Northstar drift phase did not produce a repair plan" >&2; exit 1; }
     "$engine" -chdir="$root" show -json "$plan" | grep -q 'module.forms.hubspot_form_definition.this' || {
       echo "Northstar drift plan skipped the stable-keyed Form definition" >&2
+      exit 1
+    }
+    "$engine" -chdir="$root" show -json "$plan" | grep -q 'module.files_brand.hubspot_file.this' || {
+      echo "Northstar drift plan skipped the stable-keyed Managed file" >&2
       exit 1
     }
     if [ "$mode" = local ]; then
@@ -246,11 +290,13 @@ case "$command" in
     "$engine" -chdir="$root" apply -input=false "$plan"
     "$engine" -chdir="$root" plan -detailed-exitcode -input=false >/dev/null
     require_form_output
+    verify_northstar_files
     ;;
   refresh)
     load_hubspot_auth
     mkdir -p "$bundle"
     run_northstar_helper archive-for-refresh
+    run_northstar_helper drift-folder-path "$(northstar_brand_folder_id)" "$(northstar_downloads_folder_id)"
     set +e
     "$engine" -chdir="$root" plan -refresh-only -detailed-exitcode -input=false -out="$plan"
     refresh_exit_code=$?
@@ -261,6 +307,7 @@ case "$command" in
     "$engine" -chdir="$root" apply -input=false "$plan"
     "$engine" -chdir="$root" plan -detailed-exitcode -input=false >/dev/null
     require_form_output
+    verify_northstar_files
     ;;
   output)
     "$engine" -chdir="$root" output
@@ -268,6 +315,10 @@ case "$command" in
   adopt)
     load_hubspot_auth
     form_id=$(northstar_form_id)
+    brand_folder_id=$(northstar_brand_folder_id)
+    downloads_folder_id=$(northstar_downloads_folder_id)
+    private_file_id=$(northstar_private_file_id)
+    public_file_id=$(northstar_public_file_id)
     adopt_resource 'module.crm_schema["contacts"].hubspot_property_group.this["ns_customer_context"]' 'contacts/ns_customer_context'
     adopt_resource 'module.crm_schema["contacts"].hubspot_property.this["ns_buyer_role"]' 'contacts/ns_buyer_role'
     adopt_resource 'module.crm_schema["contacts"].hubspot_property.this["ns_onboarding_status"]' 'contacts/ns_onboarding_status'
@@ -283,19 +334,40 @@ case "$command" in
     adopt_resource 'module.crm_schema["tickets"].hubspot_property.this["ns_support_summary"]' 'tickets/ns_support_summary'
     adopt_resource 'module.crm_schema["tickets"].hubspot_property.this["ns_response_due_at"]' 'tickets/ns_response_due_at'
     adopt_resource 'module.forms.hubspot_form_definition.this["contact_us"]' "$form_id"
+    adopt_resource 'module.files_root.hubspot_file_folder.this["brand"]' "$brand_folder_id"
+    adopt_resource 'module.files_brand.hubspot_file_folder.this["downloads"]' "$downloads_folder_id"
+    adopt_resource 'module.files_root.hubspot_file.this["private_readme"]' "$private_file_id"
+    adopt_resource 'module.files_brand.hubspot_file.this["public_logo"]' "$public_file_id"
     "$engine" -chdir="$root" plan -detailed-exitcode -input=false >/dev/null
     require_form_output
+    verify_northstar_files
     ;;
   destroy-plan)
     load_hubspot_auth
     mkdir -p "$bundle"
     form_id=$(northstar_form_id)
     printf '%s\n' "$form_id" >"$bundle/form-id"
+    {
+      northstar_brand_folder_id
+      northstar_downloads_folder_id
+      northstar_private_file_id
+      northstar_public_file_id
+    } >"$bundle/files-ids"
     "$engine" -chdir="$root" plan -destroy -input=false -out="$plan"
     "$engine" -chdir="$root" show -json "$plan" | grep -q 'module.forms.hubspot_form_definition.this' || {
       echo "Northstar destroy plan skipped the stable-keyed Form definition" >&2
       exit 1
     }
+    for address in \
+      module.files_root.hubspot_file.this \
+      module.files_brand.hubspot_file.this \
+      module.files_brand.hubspot_file_folder.this \
+      module.files_root.hubspot_file_folder.this; do
+      "$engine" -chdir="$root" show -json "$plan" | grep -q "$address" || {
+        echo "Northstar destroy plan skipped stable-keyed Files configuration" >&2
+        exit 1
+      }
+    done
     if [ "$mode" = local ]; then
       (cd "$bundle" && shasum -a 256 "bin/terraform-provider-hubspot" >"$(basename "$provider_digest")")
     fi
@@ -305,6 +377,7 @@ case "$command" in
     load_hubspot_auth
     test -f "$plan" || { echo "run '$0 $mode destroy-plan' before destroy-apply" >&2; exit 1; }
     test -s "$bundle/form-id" || { echo "reviewed destroy plan is missing its exact Form identity" >&2; exit 1; }
+    test "$(wc -l <"$bundle/files-ids" | tr -d ' ')" = 4 || { echo "reviewed destroy plan is missing exact Files identities" >&2; exit 1; }
     form_id=$(cat "$bundle/form-id")
     "$engine" -chdir="$root" apply -input=false "$plan"
     run_northstar_helper verify-form-terminal "$form_id" >"$bundle/form-terminal.json"
@@ -313,6 +386,19 @@ case "$command" in
     grep -q '"active_owned_forms":0' "$bundle/form-terminal.json"
     grep -q '"cleanup":"passed"' "$bundle/form-terminal.json"
     ! grep -Fq "$form_id" "$bundle/form-terminal.json" || { echo "terminal record exposed a raw Form identity" >&2; exit 1; }
+    brand_folder_id=$(sed -n '1p' "$bundle/files-ids")
+    downloads_folder_id=$(sed -n '2p' "$bundle/files-ids")
+    private_file_id=$(sed -n '3p' "$bundle/files-ids")
+    public_file_id=$(sed -n '4p' "$bundle/files-ids")
+    run_northstar_helper verify-files-terminal "$brand_folder_id" "$downloads_folder_id" "$private_file_id" "$public_file_id" >"$bundle/files-terminal.json"
+    test -s "$bundle/files-terminal.json"
+    grep -q '"active_owned_files":0' "$bundle/files-terminal.json"
+    grep -q '"active_owned_folders":0' "$bundle/files-terminal.json"
+    grep -q '"cleanup":"passed"' "$bundle/files-terminal.json"
+    ! grep -Eq "$brand_folder_id|$downloads_folder_id|$private_file_id|$public_file_id" "$bundle/files-terminal.json" || {
+      echo "terminal record exposed a raw Files identity" >&2
+      exit 1
+    }
     ;;
   *)
     echo "command must be fmt, validate, test, init, plan, apply, verify, drift, repair, refresh, output, adopt, destroy-plan, or destroy-apply" >&2

@@ -36,3 +36,39 @@ output "northstar_contact_form_id" {
   description = "Generated identity of the stable-keyed Northstar contact form."
   value       = module.forms.ids["contact_us"]
 }
+
+output "northstar_file_folder_ids" {
+  description = "Generated HubSpot File folder IDs keyed by stable Northstar folder identity."
+  value = {
+    brand     = module.files_root.folder_ids["brand"]
+    downloads = module.files_brand.folder_ids["downloads"]
+  }
+}
+
+output "northstar_file_ids" {
+  description = "Generated HubSpot Managed file IDs keyed by stable Northstar file identity."
+  value = {
+    private_readme = module.files_root.file_ids["private_readme"]
+    public_logo    = module.files_brand.file_ids["public_logo"]
+  }
+}
+
+output "northstar_brand_folder_id" {
+  description = "Generated identity of the stable-keyed Northstar brand folder."
+  value       = module.files_root.folder_ids["brand"]
+}
+
+output "northstar_downloads_folder_id" {
+  description = "Generated identity of the stable-keyed Northstar downloads folder."
+  value       = module.files_brand.folder_ids["downloads"]
+}
+
+output "northstar_private_file_id" {
+  description = "Generated identity of the stable-keyed Northstar private Managed file."
+  value       = module.files_root.file_ids["private_readme"]
+}
+
+output "northstar_public_file_id" {
+  description = "Generated identity of the stable-keyed Northstar public non-indexable Managed file."
+  value       = module.files_brand.file_ids["public_logo"]
+}
