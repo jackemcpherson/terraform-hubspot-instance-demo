@@ -16,10 +16,12 @@ case "$northstar_files_prefix" in *_ ) ;; *)
   echo "HUBSPOT_NORTHSTAR_FILES_PREFIX must be a bounded ns_ prefix ending in an underscore" >&2
   exit 1
 esac
-test "$(printf '%s' "$northstar_files_prefix" | wc -c | tr -d ' ')" -le 100 || {
-  echo "HUBSPOT_NORTHSTAR_FILES_PREFIX must be at most 100 characters" >&2
-  exit 1
-}
+if [ "$northstar_files_prefix" != ns_ ]; then
+  test "$(printf '%s' "$northstar_files_prefix" | wc -c | tr -d ' ')" -le 14 || {
+    echo "HUBSPOT_NORTHSTAR_FILES_PREFIX must fit the Files search name limit" >&2
+    exit 1
+  }
+fi
 TF_VAR_northstar_files_prefix=$northstar_files_prefix
 export TF_VAR_northstar_files_prefix
 

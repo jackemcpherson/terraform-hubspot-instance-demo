@@ -90,3 +90,22 @@ run "applies_cumulative_configuration" {
     error_message = "The cumulative demo must expose every generated Files ID through stable module outputs."
   }
 }
+
+run "bounds_protected_files_names_for_live_search" {
+  command = plan
+
+  variables {
+    northstar_files_prefix = "ns_1a2b3c4d_o_"
+  }
+
+  assert {
+    condition = (
+      local.northstar_files_names.brand == "ns_1a2b3c4d_o_b" &&
+      local.northstar_files_names.downloads == "ns_1a2b3c4d_o_d" &&
+      local.northstar_files_names.private_file == "ns_1a2b3c4d_o_p.txt" &&
+      local.northstar_files_names.public_file == "ns_1a2b3c4d_o_l.svg" &&
+      alltrue([for name in values(local.northstar_files_names) : length(name) <= 19])
+    )
+    error_message = "Protected Northstar Files names must fit the live search API's 20-character name limit."
+  }
+}
