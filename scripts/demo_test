@@ -38,6 +38,7 @@ chmod +x "$bin/tofu"
 cat >"$tmp/helper" <<'EOF'
 #!/bin/sh
 set -eu
+test "$TF_VAR_northstar_files_prefix" = "$HUBSPOT_NORTHSTAR_FILES_PREFIX"
 printf 'helper:%s\n' "$*" >>"$CALL_LOG"
 case "$1" in
   verify-form-terminal) printf '%s\n' '{"terminal":"archived","active_owned_forms":0,"cleanup":"passed"}' ;;
@@ -48,7 +49,7 @@ chmod +x "$tmp/helper"
 
 run() {
   PATH="$bin:$PATH" CALL_LOG="$log" HUBSPOT_ACCESS_TOKEN=test HUBSPOT_NORTHSTAR_HELPER_SCRIPT="$tmp/helper" \
-    ENGINE=tofu "$root/scripts/demo" registry "$1"
+    HUBSPOT_NORTHSTAR_FILES_PREFIX=ns_123_1_ ENGINE=tofu "$root/scripts/demo" registry "$1"
 }
 
 run verify
