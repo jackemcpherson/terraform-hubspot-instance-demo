@@ -7,6 +7,21 @@ command=${2:-plan}
 engine=${ENGINE:-tofu}
 provider_repo=${HUBSPOT_PROVIDER_REPO:-"$(dirname "$root")/terraform-provider-hubspot"}
 lock_dir=${HUBSPOT_ONE_PORTAL_LOCK_DIR:-"${TMPDIR:-/tmp}/hubspot-free-portal-${HUBSPOT_PORTAL_LOCK_ID:-free-configuration}.lock"}
+northstar_files_prefix=${HUBSPOT_NORTHSTAR_FILES_PREFIX:-ns_}
+printf '%s\n' "$northstar_files_prefix" | grep -Eq '^ns_[[:alnum:]_]*$' || {
+  echo "HUBSPOT_NORTHSTAR_FILES_PREFIX must be a bounded ns_ prefix ending in an underscore" >&2
+  exit 1
+}
+case "$northstar_files_prefix" in *_ ) ;; *)
+  echo "HUBSPOT_NORTHSTAR_FILES_PREFIX must be a bounded ns_ prefix ending in an underscore" >&2
+  exit 1
+esac
+test "$(printf '%s' "$northstar_files_prefix" | wc -c | tr -d ' ')" -le 100 || {
+  echo "HUBSPOT_NORTHSTAR_FILES_PREFIX must be at most 100 characters" >&2
+  exit 1
+}
+TF_VAR_northstar_files_prefix=$northstar_files_prefix
+export TF_VAR_northstar_files_prefix
 
 case "$command" in
   plan|apply) artifact=apply ;;
@@ -26,6 +41,10 @@ command -v "$engine" >/dev/null 2>&1 || { echo "$engine is required" >&2; exit 1
 
 verify_provenance() {
   test "${HUBSPOT_REQUIRE_CLEAN_PROVENANCE:-}" = 1 || return 0
+  test -n "${HUBSPOT_NORTHSTAR_FILES_PREFIX:-}" || {
+    echo "HUBSPOT_NORTHSTAR_FILES_PREFIX is required for protected Northstar runs" >&2
+    exit 1
+  }
   expected=${HUBSPOT_DEMO_EXPECTED_COMMIT:?HUBSPOT_DEMO_EXPECTED_COMMIT is required for protected Northstar runs}
   printf '%s\n' "$expected" | grep -Eq '^[0-9a-f]{40}$' || { echo "expected Northstar demo commit must be an exact SHA" >&2; exit 1; }
   test "$(git -C "$root" rev-parse HEAD)" = "$expected" || { echo "Northstar demo commit does not match the protected candidate" >&2; exit 1; }
