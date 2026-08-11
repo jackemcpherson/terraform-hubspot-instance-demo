@@ -75,11 +75,13 @@ grep -q '^helper:verify-files 10001 10002 20001 20002$' "$log"
 test "$(grep -c '^engine:plan -detailed-exitcode -input=false$' "$log")" = 2
 
 : >"$log"
-run adopt
+rm -f "$tmp/plan-exit-once"
+PLAN_EXIT_ONCE=1 PLAN_EXIT_ONCE_MARKER="$tmp/plan-exit-once" run adopt
 grep -q '^engine:import -input=false module.files_root.hubspot_file_folder.this\["brand"\] 10001$' "$log"
 grep -q '^engine:import -input=false module.files_brand.hubspot_file_folder.this\["downloads"\] 10002$' "$log"
 grep -q '^engine:import -input=false module.files_root.hubspot_file.this\["private_readme"\] 20001$' "$log"
 grep -q '^engine:import -input=false module.files_brand.hubspot_file.this\["public_logo"\] 20002$' "$log"
+test "$(grep -c '^engine:plan -detailed-exitcode -input=false$' "$log")" = 2
 
 : >"$log"
 run destroy-plan

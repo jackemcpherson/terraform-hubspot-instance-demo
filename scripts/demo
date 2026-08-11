@@ -222,7 +222,7 @@ require_form_output() {
   }
 }
 
-require_empty_plan_after_refresh() {
+require_empty_plan_after_convergence() {
   for delay in 0 5 15; do
     if [ "$delay" -gt 0 ]; then
       sleep "$delay"
@@ -235,10 +235,10 @@ require_empty_plan_after_refresh() {
       0) return 0 ;;
       1) return 1 ;;
       2) ;;
-      *) echo "Northstar post-refresh plan returned an invalid exit code" >&2; return 1 ;;
+      *) echo "Northstar convergence plan returned an invalid exit code" >&2; return 1 ;;
     esac
   done
-  echo "Northstar post-refresh state did not converge after bounded retries" >&2
+  echo "Northstar state did not converge after bounded retries" >&2
   return 1
 }
 
@@ -346,7 +346,7 @@ case "$command" in
     "$engine" -chdir="$root" apply -input=false "$plan"
     "$engine" -chdir="$root" plan -input=false -out="$plan"
     "$engine" -chdir="$root" apply -input=false "$plan"
-    require_empty_plan_after_refresh
+    require_empty_plan_after_convergence
     require_form_output
     verify_northstar_files
     ;;
@@ -379,7 +379,7 @@ case "$command" in
     adopt_resource 'module.files_brand.hubspot_file_folder.this["downloads"]' "$downloads_folder_id"
     adopt_resource 'module.files_root.hubspot_file.this["private_readme"]' "$private_file_id"
     adopt_resource 'module.files_brand.hubspot_file.this["public_logo"]' "$public_file_id"
-    "$engine" -chdir="$root" plan -detailed-exitcode -input=false >/dev/null
+    require_empty_plan_after_convergence
     require_form_output
     verify_northstar_files
     ;;
