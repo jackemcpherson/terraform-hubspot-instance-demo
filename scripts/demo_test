@@ -81,6 +81,8 @@ grep -q '^engine:import -input=false module.files_root.hubspot_file_folder.this\
 grep -q '^engine:import -input=false module.files_brand.hubspot_file_folder.this\["downloads"\] 10002$' "$log"
 grep -q '^engine:import -input=false module.files_root.hubspot_file.this\["private_readme"\] 20001$' "$log"
 grep -q '^engine:import -input=false module.files_brand.hubspot_file.this\["public_logo"\] 20002$' "$log"
+grep -q '^engine:plan -input=false -out=.*plan\.tfplan$' "$log"
+grep -q '^engine:apply -input=false .*plan\.tfplan$' "$log"
 test "$(grep -c '^engine:plan -detailed-exitcode -input=false$' "$log")" = 2
 
 : >"$log"
