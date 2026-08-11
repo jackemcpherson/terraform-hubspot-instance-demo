@@ -379,6 +379,9 @@ case "$command" in
     adopt_resource 'module.files_brand.hubspot_file_folder.this["downloads"]' "$downloads_folder_id"
     adopt_resource 'module.files_root.hubspot_file.this["private_readme"]' "$private_file_id"
     adopt_resource 'module.files_brand.hubspot_file.this["public_logo"]' "$public_file_id"
+    mkdir -p "$bundle"
+    "$engine" -chdir="$root" plan -input=false -out="$plan"
+    "$engine" -chdir="$root" apply -input=false "$plan"
     require_empty_plan_after_convergence
     require_form_output
     verify_northstar_files
