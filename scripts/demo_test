@@ -28,7 +28,13 @@ case "$*" in
   'output -raw northstar_downloads_folder_id') printf '%s\n' 10002 ;;
   'output -raw northstar_private_file_id') printf '%s\n' 20001 ;;
   'output -raw northstar_public_file_id') printf '%s\n' 20002 ;;
-  'plan -detailed-exitcode -input=false'|'plan -detailed-exitcode -input=false -out='*) exit "${PLAN_EXIT:-0}" ;;
+  'plan -detailed-exitcode -input=false'|'plan -detailed-exitcode -input=false -out='*)
+    if test "${PLAN_EXIT_ONCE:-}" = 1 && test ! -e "$PLAN_EXIT_ONCE_MARKER"; then
+      : >"$PLAN_EXIT_ONCE_MARKER"
+      exit 2
+    fi
+    exit "${PLAN_EXIT:-0}"
+    ;;
   'plan -refresh-only -detailed-exitcode -input=false -out='*) exit 2 ;;
   'show -json '*) printf '%s\n' '{"addresses":["module.forms.hubspot_form_definition.this","module.files_root.hubspot_file.this","module.files_root.hubspot_file_folder.this","module.files_brand.hubspot_file.this","module.files_brand.hubspot_file_folder.this"]}' ;;
 esac
@@ -62,10 +68,11 @@ grep -q '^helper:drift-files 20002$' "$log"
 unset PLAN_EXIT
 
 : >"$log"
-run refresh
+PLAN_EXIT_ONCE=1 PLAN_EXIT_ONCE_MARKER="$tmp/plan-exit-once" run refresh
 grep -q '^helper:archive-for-refresh$' "$log"
 grep -q '^helper:drift-folder-path 10001 10002$' "$log"
 grep -q '^helper:verify-files 10001 10002 20001 20002$' "$log"
+test "$(grep -c '^engine:plan -detailed-exitcode -input=false$' "$log")" = 2
 
 : >"$log"
 run adopt
