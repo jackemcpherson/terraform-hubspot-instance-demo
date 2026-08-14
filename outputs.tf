@@ -37,6 +37,16 @@ output "northstar_contact_form_id" {
   value       = module.forms.ids["contact_us"]
 }
 
+output "northstar_account_membership_ids" {
+  description = "Canonical HubSpot Settings user IDs keyed by stable Northstar membership identity."
+  value       = module.account_memberships.ids
+}
+
+output "northstar_operator_membership_id" {
+  description = "Canonical Settings user ID of the stable-keyed Northstar operator membership."
+  value       = module.account_memberships.ids["northstar_operator"]
+}
+
 output "northstar_file_folder_ids" {
   description = "Generated HubSpot File folder IDs keyed by stable Northstar folder identity."
   value = {

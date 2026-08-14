@@ -41,13 +41,13 @@ groups. Teardown is archival; option removal does not migrate CRM record values.
 | Name | Version |
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.8, < 2.0 |
-| <a name="requirement_hubspot"></a> [hubspot](#requirement\_hubspot) | >= 0.2.0, < 0.5.0 |
+| <a name="requirement_hubspot"></a> [hubspot](#requirement\_hubspot) | >= 0.2.0, < 0.6.0 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_hubspot"></a> [hubspot](#provider\_hubspot) | >= 0.2.0, < 0.5.0 |
+| <a name="provider_hubspot"></a> [hubspot](#provider\_hubspot) | >= 0.2.0, < 0.6.0 |
 
 ## Modules
 
