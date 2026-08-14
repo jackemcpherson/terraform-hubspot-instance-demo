@@ -2,7 +2,7 @@
 
 Install the repository's exact toolchain versions, which `make check` verifies:
 
-- Go 1.26.5
+- Go 1.26.6
 - OpenTofu 1.12.3
 - Terraform 1.15.8
 - TFLint 0.63.1
