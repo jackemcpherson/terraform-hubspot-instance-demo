@@ -1,15 +1,17 @@
 # Northstar HubSpot CRM Demo
 
 This repository is a realistic consumer of
-`jackemcpherson/hubspot` `v0.4.0`. Its cumulative root manages the CRM property
+`jackemcpherson/hubspot` `v0.5.0`. Its cumulative root manages the CRM property
 schema, one stable-keyed contact Form definition, two explicit File folder
-levels, and two stable-keyed Managed files for Northstar Cloud, a fictional B2B
-software company, in a disposable HubSpot Free portal.
+levels, two stable-keyed Managed files, and one guarded account membership for
+Northstar Cloud, a fictional B2B software company, in a disposable HubSpot Free
+portal.
 
 The desired state contains four property groups, ten non-sensitive properties
 across contacts, companies, deals, and tickets, one `ns_contact_us` form, and
 private plus public non-indexable tiny inert files under explicit generated
-folder IDs.
+folder IDs, and one caller-supplied account membership with welcome email
+disabled.
 Ten properties is a deliberate
 fixture size, not provider admission control or a claimed API-created-property
 limit. Remote create responses remain authoritative.
@@ -32,6 +34,12 @@ values. The form's `contact_us` map key is its durable local address, while the
 module output exposes its generated HubSpot ID for exact import and verification.
 Labels and remote names can change without a key change.
 
+The `northstar_operator` membership key is also durable local identity. Its
+email is supplied through `HUBSPOT_NORTHSTAR_MEMBERSHIP_EMAIL`; the repository
+does not embed a portal identity. The module exposes the canonical Settings user
+ID, requires an explicit welcome-email choice, and opts into removal only
+because this root targets a disposable portal.
+
 The cumulative root and Files example under `examples/files-configuration`
 compose two hierarchy levels through generated `folder_ids`, with one private
 file and one public non-indexable file. Source paths are sensitive, reviewed
@@ -52,6 +60,17 @@ hs account auth
 export HUBSPOT_CLI_ACCOUNT=jack
 # Alternative: export HUBSPOT_ACCESS_TOKEN='...'
 ```
+
+Every live lifecycle command also requires the exact disposable membership
+address:
+
+```sh
+export HUBSPOT_NORTHSTAR_MEMBERSHIP_EMAIL='owned-fixture@example.com'
+```
+
+Never use a production user. The token needs either HubSpot Settings user
+read/write scopes or the proven CRM users read/write alternative, in addition
+to the cumulative CRM schema, Forms, and Files scopes.
 
 Then run:
 
@@ -81,7 +100,8 @@ ENGINE=terraform ./scripts/demo local apply
 ## Demo Sequence
 
 1. Open `schemas.tf` to show the model and reusable module.
-2. Run `make plan` to propose four groups, ten properties, one contact form, two folders, and two Managed files.
+2. Run `make plan` to propose four groups, ten properties, one contact form, two
+   folders, two Managed files, and one account membership.
 3. Run `make apply` to create the planned cumulative configuration.
 4. Open HubSpot property, Forms, and File Manager settings and filter for `ns_`.
 5. Change one property label in the HubSpot interface.
@@ -102,12 +122,15 @@ resource references. Form teardown archives the exact generated identity; it is
 retained as an Archived tombstone rather than purged or restored. Files teardown
 removes Managed files before referenced folders and folders leaf-first; normal
 deletion proves active absence but leaves HubSpot-managed Trash retention in
-place.
+place. Membership teardown requires the local removal opt-in, rereads the exact
+Settings ID and email, refuses a Super Admin, and proves both identities absent.
+Remove the resource from state instead when the portal membership must remain.
 
 ## Published Release
 
-After `v0.4.0` is available from both registries, use the exact committed
-pin rather than the local development override:
+After `v0.5.0` is available from both registries, regenerate both committed
+registry locks and use the exact committed pin rather than the local development
+override:
 
 ```sh
 make registry-init
@@ -137,7 +160,7 @@ ENGINE=terraform make registry-destroy-apply
 
 ### Release Checklist
 
-1. Publish provider `v0.4.0` and confirm both public registries list it.
+1. Publish provider `v0.5.0` and confirm both public registries list it.
 2. Run `make registry-init` and `ENGINE=terraform make registry-init`, then
    review each selected provider source and checksum set.
 3. Commit both registry-generated files under `locks/` before applying.
@@ -146,9 +169,11 @@ Git ignores local state for this disposable demo portal. A shared environment
 should use a remote, encrypted, locked backend with one CI writer.
 
 Release automation can reconstruct local state with `scripts/demo local adopt`.
-It uses the ten known properties and four known groups, and imports the Form,
-File folders, and Managed files by generated IDs from stable module outputs.
-When no state output exists, supply `HUBSPOT_NORTHSTAR_FORM_ID`,
+It uses the ten known properties and four known groups, imports the Form, File
+folders, and Managed files by generated IDs from stable module outputs, and
+imports the membership through the explicit `email:` form before storing its
+canonical Settings ID. When no state output exists for the other generated
+identities, supply `HUBSPOT_NORTHSTAR_FORM_ID`,
 `HUBSPOT_NORTHSTAR_BRAND_FOLDER_ID`, `HUBSPOT_NORTHSTAR_DOWNLOADS_FOLDER_ID`,
 `HUBSPOT_NORTHSTAR_PRIVATE_FILE_ID`, and `HUBSPOT_NORTHSTAR_PUBLIC_FILE_ID` from
 the protected handoff. The script never discovers configuration by name, path,

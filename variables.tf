@@ -14,6 +14,20 @@ variable "northstar_files_prefix" {
   }
 }
 
+variable "northstar_membership_email" {
+  description = "Caller-supplied email for the disposable Northstar account membership."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition = (
+      var.northstar_membership_email == lower(trimspace(var.northstar_membership_email)) &&
+      can(regex("^[^[:space:]@]+@[^[:space:]@]+$", var.northstar_membership_email))
+    )
+    error_message = "northstar_membership_email must be a lowercase address without surrounding whitespace."
+  }
+}
+
 locals {
   northstar_files_names = var.northstar_files_prefix == "ns_" ? {
     brand        = "ns_brand"

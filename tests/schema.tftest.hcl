@@ -27,6 +27,13 @@ mock_provider "hubspot" {
     }
   }
 
+  mock_resource "hubspot_account_membership" {
+    defaults = {
+      id          = "123456789"
+      super_admin = false
+    }
+  }
+
   mock_data "hubspot_property_definition" {
     defaults = {
       id         = "contacts/email"
@@ -44,6 +51,10 @@ mock_provider "hubspot" {
 
 run "applies_cumulative_configuration" {
   command = apply
+
+  variables {
+    northstar_membership_email = "northstar-operator@example.com"
+  }
 
   assert {
     condition     = toset(keys(local.schemas)) == toset(["contacts", "companies", "deals", "tickets"])
@@ -72,6 +83,15 @@ run "applies_cumulative_configuration" {
 
   assert {
     condition = (
+      keys(module.account_memberships.ids) == ["northstar_operator"] &&
+      output.northstar_operator_membership_id == module.account_memberships.ids["northstar_operator"] &&
+      output.northstar_account_membership_ids == module.account_memberships.ids
+    )
+    error_message = "The cumulative demo must expose one guarded membership with welcome email disabled."
+  }
+
+  assert {
+    condition = (
       keys(module.files_root.folder_ids) == ["brand"] &&
       keys(module.files_root.file_ids) == ["private_readme"] &&
       keys(module.files_brand.folder_ids) == ["downloads"] &&
@@ -95,7 +115,8 @@ run "bounds_protected_files_names_for_live_search" {
   command = plan
 
   variables {
-    northstar_files_prefix = "ns_1a2b3c4d_o_"
+    northstar_files_prefix     = "ns_1a2b3c4d_o_"
+    northstar_membership_email = "northstar-operator@example.com"
   }
 
   assert {

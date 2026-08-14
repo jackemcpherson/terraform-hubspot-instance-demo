@@ -8,6 +8,7 @@ engine=${ENGINE:-tofu}
 provider_repo=${HUBSPOT_PROVIDER_REPO:-"$(dirname "$root")/terraform-provider-hubspot"}
 lock_dir=${HUBSPOT_ONE_PORTAL_LOCK_DIR:-"${TMPDIR:-/tmp}/hubspot-free-portal-${HUBSPOT_PORTAL_LOCK_ID:-free-configuration}.lock"}
 northstar_files_prefix=${HUBSPOT_NORTHSTAR_FILES_PREFIX:-ns_}
+northstar_membership_email=${HUBSPOT_NORTHSTAR_MEMBERSHIP_EMAIL:-northstar-operator@example.com}
 printf '%s\n' "$northstar_files_prefix" | grep -Eq '^ns_[[:alnum:]_]*$' || {
   echo "HUBSPOT_NORTHSTAR_FILES_PREFIX must be a bounded ns_ prefix ending in an underscore" >&2
   exit 1
@@ -24,6 +25,16 @@ if [ "$northstar_files_prefix" != ns_ ]; then
 fi
 TF_VAR_northstar_files_prefix=$northstar_files_prefix
 export TF_VAR_northstar_files_prefix
+printf '%s\n' "$northstar_membership_email" | grep -Eq '^[^[:space:]@]+@[^[:space:]@]+$' || {
+  echo "HUBSPOT_NORTHSTAR_MEMBERSHIP_EMAIL must be one exact email address" >&2
+  exit 1
+}
+test "$northstar_membership_email" = "$(printf '%s' "$northstar_membership_email" | tr '[:upper:]' '[:lower:]')" || {
+  echo "HUBSPOT_NORTHSTAR_MEMBERSHIP_EMAIL must be lowercase" >&2
+  exit 1
+}
+TF_VAR_northstar_membership_email=$northstar_membership_email
+export TF_VAR_northstar_membership_email
 
 case "$command" in
   plan|apply) artifact=apply ;;
@@ -31,6 +42,14 @@ case "$command" in
   refresh) artifact=refresh ;;
   destroy-plan|destroy-apply) artifact=destroy ;;
   *) artifact=scratch ;;
+esac
+case "$command" in
+  plan|apply|verify|drift|repair|refresh|adopt|destroy-plan|destroy-apply)
+    test -n "${HUBSPOT_NORTHSTAR_MEMBERSHIP_EMAIL:-}" || {
+      echo "HUBSPOT_NORTHSTAR_MEMBERSHIP_EMAIL is required for live Northstar lifecycle commands" >&2
+      exit 1
+    }
+    ;;
 esac
 bundle="$root/.demo/$mode-$engine-$artifact"
 provider_binary="$bundle/bin/terraform-provider-hubspot"
@@ -45,6 +64,10 @@ verify_provenance() {
   test "${HUBSPOT_REQUIRE_CLEAN_PROVENANCE:-}" = 1 || return 0
   test -n "${HUBSPOT_NORTHSTAR_FILES_PREFIX:-}" || {
     echo "HUBSPOT_NORTHSTAR_FILES_PREFIX is required for protected Northstar runs" >&2
+    exit 1
+  }
+  test -n "${HUBSPOT_NORTHSTAR_MEMBERSHIP_EMAIL:-}" || {
+    echo "HUBSPOT_NORTHSTAR_MEMBERSHIP_EMAIL is required for protected Northstar runs" >&2
     exit 1
   }
   expected=${HUBSPOT_DEMO_EXPECTED_COMMIT:?HUBSPOT_DEMO_EXPECTED_COMMIT is required for protected Northstar runs}
@@ -72,7 +95,7 @@ build_local_provider() {
   (
     cd "$provider_repo"
     CGO_ENABLED=0 GOTOOLCHAIN=local go build -trimpath \
-      -ldflags '-X main.version=0.4.0-local' \
+      -ldflags '-X main.version=0.5.0-local' \
       -o "$provider_binary" .
   )
 }
@@ -195,12 +218,29 @@ northstar_downloads_folder_id() { northstar_numeric_id northstar_downloads_folde
 northstar_private_file_id() { northstar_numeric_id northstar_private_file_id HUBSPOT_NORTHSTAR_PRIVATE_FILE_ID; }
 northstar_public_file_id() { northstar_numeric_id northstar_public_file_id HUBSPOT_NORTHSTAR_PUBLIC_FILE_ID; }
 
+northstar_membership_id() {
+  if id=$("$engine" -chdir="$root" output -raw northstar_operator_membership_id 2>/dev/null) && printf '%s\n' "$id" | grep -Eq '^[1-9][0-9]*$'; then
+    printf '%s\n' "$id"
+    return
+  fi
+  id=${HUBSPOT_NORTHSTAR_MEMBERSHIP_ID:-}
+  printf '%s\n' "$id" | grep -Eq '^[1-9][0-9]*$' || {
+    echo "HUBSPOT_NORTHSTAR_MEMBERSHIP_ID is required when the generated membership output is unavailable" >&2
+    exit 1
+  }
+  printf '%s\n' "$id"
+}
+
 verify_northstar_files() {
   run_northstar_helper verify-files \
     "$(northstar_brand_folder_id)" \
     "$(northstar_downloads_folder_id)" \
     "$(northstar_private_file_id)" \
     "$(northstar_public_file_id)"
+}
+
+verify_northstar_membership() {
+  run_northstar_helper verify-membership "$(northstar_membership_id)" "$northstar_membership_email"
 }
 
 northstar_form_id() {
@@ -272,7 +312,11 @@ case "$command" in
   test)
     "$engine" -chdir="$root" test
     "$engine" -chdir="$root/modules/crm-schema" test
+    "$engine" -chdir="$root/modules/form-definition" test
     "$engine" -chdir="$root/modules/files-configuration" test
+    "$engine" -chdir="$root/modules/account-membership" test
+    "$engine" -chdir="$root/examples/form-definition" get >/dev/null
+    "$engine" -chdir="$root/examples/files-configuration" get >/dev/null
     "$engine" -chdir="$root/examples/files-configuration" test
     ;;
   init)
@@ -301,6 +345,7 @@ case "$command" in
     test "$plan_exit_code" = 0 || { echo "demo desired state has drift or pending changes" >&2; exit 1; }
     require_form_output
     verify_northstar_files
+    verify_northstar_membership
     ;;
   drift)
     load_hubspot_auth
@@ -332,6 +377,7 @@ case "$command" in
     "$engine" -chdir="$root" plan -detailed-exitcode -input=false >/dev/null
     require_form_output
     verify_northstar_files
+    verify_northstar_membership
     ;;
   refresh)
     load_hubspot_auth
@@ -349,6 +395,7 @@ case "$command" in
     require_empty_plan_after_convergence
     require_form_output
     verify_northstar_files
+    verify_northstar_membership
     ;;
   output)
     "$engine" -chdir="$root" output
@@ -379,12 +426,14 @@ case "$command" in
     adopt_resource 'module.files_brand.hubspot_file_folder.this["downloads"]' "$downloads_folder_id"
     adopt_resource 'module.files_root.hubspot_file.this["private_readme"]' "$private_file_id"
     adopt_resource 'module.files_brand.hubspot_file.this["public_logo"]' "$public_file_id"
+    adopt_resource 'module.account_memberships.hubspot_account_membership.this["northstar_operator"]' "email:$northstar_membership_email"
     mkdir -p "$bundle"
     "$engine" -chdir="$root" plan -input=false -out="$plan"
     "$engine" -chdir="$root" apply -input=false "$plan"
     require_empty_plan_after_convergence
     require_form_output
     verify_northstar_files
+    verify_northstar_membership
     ;;
   destroy-plan)
     load_hubspot_auth
@@ -397,6 +446,7 @@ case "$command" in
       northstar_private_file_id
       northstar_public_file_id
     } >"$bundle/files-ids"
+    northstar_membership_id >"$bundle/membership-id"
     "$engine" -chdir="$root" plan -destroy -input=false -out="$plan"
     "$engine" -chdir="$root" show -json "$plan" | grep -q 'module.forms.hubspot_form_definition.this' || {
       echo "Northstar destroy plan skipped the stable-keyed Form definition" >&2
@@ -412,6 +462,10 @@ case "$command" in
         exit 1
       }
     done
+    "$engine" -chdir="$root" show -json "$plan" | grep -q 'module.account_memberships.hubspot_account_membership.this' || {
+      echo "Northstar destroy plan skipped the stable-keyed account membership" >&2
+      exit 1
+    }
     if [ "$mode" = local ]; then
       (cd "$bundle" && shasum -a 256 "bin/terraform-provider-hubspot" >"$(basename "$provider_digest")")
     fi
@@ -422,6 +476,7 @@ case "$command" in
     test -f "$plan" || { echo "run '$0 $mode destroy-plan' before destroy-apply" >&2; exit 1; }
     test -s "$bundle/form-id" || { echo "reviewed destroy plan is missing its exact Form identity" >&2; exit 1; }
     test "$(wc -l <"$bundle/files-ids" | tr -d ' ')" = 4 || { echo "reviewed destroy plan is missing exact Files identities" >&2; exit 1; }
+    test -s "$bundle/membership-id" || { echo "reviewed destroy plan is missing its canonical membership identity" >&2; exit 1; }
     form_id=$(cat "$bundle/form-id")
     "$engine" -chdir="$root" apply -input=false "$plan"
     run_northstar_helper verify-form-terminal "$form_id" >"$bundle/form-terminal.json"
@@ -441,6 +496,15 @@ case "$command" in
     grep -q '"cleanup":"passed"' "$bundle/files-terminal.json"
     ! grep -Eq "$brand_folder_id|$downloads_folder_id|$private_file_id|$public_file_id" "$bundle/files-terminal.json" || {
       echo "terminal record exposed a raw Files identity" >&2
+      exit 1
+    }
+    membership_id=$(cat "$bundle/membership-id")
+    run_northstar_helper verify-membership-terminal "$membership_id" "$northstar_membership_email" >"$bundle/membership-terminal.json"
+    test -s "$bundle/membership-terminal.json"
+    grep -q '"active_owned_memberships":0' "$bundle/membership-terminal.json"
+    grep -q '"cleanup":"passed"' "$bundle/membership-terminal.json"
+    ! grep -Eq "$membership_id|$northstar_membership_email" "$bundle/membership-terminal.json" || {
+      echo "terminal record exposed a raw membership identity" >&2
       exit 1
     }
     ;;

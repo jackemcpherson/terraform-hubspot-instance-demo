@@ -15,7 +15,7 @@ check_version() {
   }
 }
 
-check_version "$(go version | awk '{print $3}')" "go1.26.5" "Go"
+check_version "$(go version | awk '{print $3}')" "go1.26.6" "Go"
 check_version "$(tofu version | awk 'NR == 1 {sub(/^v/, "", $2); print $2}')" "1.12.3" "OpenTofu"
 check_version "$(terraform version | awk 'NR == 1 {sub(/^v/, "", $2); print $2}')" "1.15.8" "Terraform"
 check_version "$(tflint --version | awk 'NR == 1 {print $3}')" "0.63.1" "TFLint"
@@ -31,6 +31,7 @@ tflint --recursive --config "$root/.tflint.hcl"
 terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/crm-schema"
 terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/form-definition"
 terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/files-configuration"
+terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/account-membership"
 ENGINE=tofu "$root/scripts/demo" local fmt
 ENGINE=tofu "$root/scripts/demo" local validate
 ENGINE=terraform "$root/scripts/demo" local validate
@@ -56,20 +57,23 @@ ENGINE=tofu "$root/scripts/demo" local test
 ENGINE=terraform "$root/scripts/demo" local test
 actionlint
 
-grep -q 'version = "= 0.4.0"' "$root/versions.tf" || { echo "the cumulative demo must pin provider v0.4.0" >&2; exit 1; }
+grep -q 'version = "= 0.5.0"' "$root/versions.tf" || { echo "the cumulative demo must pin provider v0.5.0" >&2; exit 1; }
 grep -q 'module "forms"' "$root/forms.tf" || { echo "the cumulative demo is missing its Forms module" >&2; exit 1; }
 grep -q 'northstar_contact_form_id' "$root/outputs.tf" || { echo "the cumulative demo is missing its generated Form ID output" >&2; exit 1; }
 grep -q 'northstar_file_folder_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable generated folder ID outputs" >&2; exit 1; }
 grep -q 'northstar_file_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable generated file ID outputs" >&2; exit 1; }
+grep -q 'northstar_account_membership_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable canonical membership ID outputs" >&2; exit 1; }
 grep -q 'module.forms.hubspot_form_definition.this' "$root/scripts/demo" || { echo "Northstar lifecycle skipped exact-ID Form adoption" >&2; exit 1; }
 grep -q 'module.files_root.hubspot_file.this' "$root/scripts/demo" || { echo "Northstar lifecycle skipped exact-ID Managed file adoption" >&2; exit 1; }
 grep -q 'verify-files-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped Files terminal cleanup proof" >&2; exit 1; }
 grep -q 'verify-form-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped terminal Form cleanup proof" >&2; exit 1; }
+grep -q 'verify-membership-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped membership cleanup proof" >&2; exit 1; }
 grep -q 'HUBSPOT_DEMO_EXPECTED_COMMIT' "$root/scripts/demo" || { echo "Northstar lifecycle skipped exact demo provenance" >&2; exit 1; }
 
 for engine in tofu terraform; do
   lock="$root/locks/$engine/.terraform.lock.hcl"
   test -f "$lock" || { echo "committed $engine registry lock is missing" >&2; exit 1; }
+  # Registry locks stay on the last published release until v0.5.0 exists.
   grep -q 'version     = "0.4.0"' "$lock"
   test "$(grep -c '"h1:' "$lock")" = 13 || { echo "$engine registry lock must cover all 13 release platforms" >&2; exit 1; }
 done
