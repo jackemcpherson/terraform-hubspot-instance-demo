@@ -434,13 +434,31 @@ case "$command" in
     mkdir -p "$bundle"
     run_northstar_helper archive-for-refresh
     run_northstar_helper archive-product-for-refresh "$(northstar_product_id)"
-    run_northstar_helper drift-folder-path "$(northstar_brand_folder_id)" "$(northstar_downloads_folder_id)"
+    brand_folder_id=$(northstar_brand_folder_id)
+    downloads_folder_id=$(northstar_downloads_folder_id)
+    private_file_id=$(northstar_private_file_id)
+    run_northstar_helper stage-file-for-folder-rename \
+      "$private_file_id" "$brand_folder_id" "$downloads_folder_id"
+    run_northstar_helper drift-folder-path "$brand_folder_id" "$downloads_folder_id"
     set +e
     "$engine" -chdir="$root" plan -refresh-only -detailed-exitcode -input=false -out="$plan"
     refresh_exit_code=$?
     set -e
     test "$refresh_exit_code" = 2 || { echo "Northstar refresh phase did not observe archived configuration" >&2; exit 1; }
     "$engine" -chdir="$root" apply -input=false "$plan"
+    # Rename the empty parent first so HubSpot cannot restore an ancestor
+    # snapshot while the staged file is moved home by the following apply.
+    folder_plan="$bundle/folder-plan.tfplan"
+    "$engine" -chdir="$root" plan \
+      -target='module.files_root.hubspot_file_folder.this["brand"]' \
+      -input=false -out="$folder_plan"
+    "$engine" -chdir="$root" apply -input=false "$folder_plan"
+    (
+      HUBSPOT_NORTHSTAR_FILES_STAGED=1
+      export HUBSPOT_NORTHSTAR_FILES_STAGED
+      run_northstar_helper verify-files \
+        "$brand_folder_id" "$downloads_folder_id" "$private_file_id" "$(northstar_public_file_id)"
+    )
     "$engine" -chdir="$root" plan -input=false -out="$plan"
     "$engine" -chdir="$root" apply -input=false "$plan"
     require_empty_plan_after_convergence
