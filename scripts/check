@@ -33,6 +33,7 @@ terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/module
 terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/files-configuration"
 terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/account-membership"
 terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/crm-user-profile"
+terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/product-definition"
 ENGINE=tofu "$root/scripts/demo" local fmt
 ENGINE=tofu "$root/scripts/demo" local validate
 ENGINE=terraform "$root/scripts/demo" local validate
@@ -59,19 +60,21 @@ ENGINE=tofu "$root/scripts/demo" local test
 ENGINE=terraform "$root/scripts/demo" local test
 actionlint
 
-grep -q 'version = "= 0.6.0"' "$root/versions.tf" || { echo "the cumulative demo must pin provider v0.6.0" >&2; exit 1; }
+grep -q 'version = "= 0.7.0"' "$root/versions.tf" || { echo "the cumulative demo must pin provider v0.7.0" >&2; exit 1; }
 grep -q 'module "forms"' "$root/forms.tf" || { echo "the cumulative demo is missing its Forms module" >&2; exit 1; }
 grep -q 'northstar_contact_form_id' "$root/outputs.tf" || { echo "the cumulative demo is missing its generated Form ID output" >&2; exit 1; }
 grep -q 'northstar_file_folder_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable generated folder ID outputs" >&2; exit 1; }
 grep -q 'northstar_file_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable generated file ID outputs" >&2; exit 1; }
 grep -q 'northstar_account_membership_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable canonical membership ID outputs" >&2; exit 1; }
 grep -q 'northstar_crm_user_profile_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable canonical CRM profile ID outputs" >&2; exit 1; }
+grep -q 'northstar_product_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable generated Product ID outputs" >&2; exit 1; }
 grep -q 'module.forms.hubspot_form_definition.this' "$root/scripts/demo" || { echo "Northstar lifecycle skipped exact-ID Form adoption" >&2; exit 1; }
 grep -q 'module.files_root.hubspot_file.this' "$root/scripts/demo" || { echo "Northstar lifecycle skipped exact-ID Managed file adoption" >&2; exit 1; }
 grep -q 'verify-files-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped Files terminal cleanup proof" >&2; exit 1; }
 grep -q 'verify-form-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped terminal Form cleanup proof" >&2; exit 1; }
 grep -q 'verify-membership-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped membership cleanup proof" >&2; exit 1; }
 grep -q 'verify-profile-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped retained CRM profile proof" >&2; exit 1; }
+grep -q 'verify-product-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped Product terminal cleanup proof" >&2; exit 1; }
 grep -q 'HUBSPOT_DEMO_EXPECTED_COMMIT' "$root/scripts/demo" || { echo "Northstar lifecycle skipped exact demo provenance" >&2; exit 1; }
 
 for engine in tofu terraform; do

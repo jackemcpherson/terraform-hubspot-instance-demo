@@ -57,6 +57,16 @@ output "northstar_operator_crm_profile_id" {
   value       = module.crm_user_profiles.ids["northstar_operator"]
 }
 
+output "northstar_product_ids" {
+  description = "Generated HubSpot Product IDs keyed by stable Northstar Product identity."
+  value       = module.product_definitions.ids
+}
+
+output "northstar_support_product_id" {
+  description = "Generated identity of the stable-keyed Northstar support Product."
+  value       = module.product_definitions.ids["northstar_support"]
+}
+
 output "northstar_file_folder_ids" {
   description = "Generated HubSpot File folder IDs keyed by stable Northstar folder identity."
   value = {

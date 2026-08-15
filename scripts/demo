@@ -95,7 +95,7 @@ build_local_provider() {
   (
     cd "$provider_repo"
     CGO_ENABLED=0 GOTOOLCHAIN=local go build -trimpath \
-      -ldflags '-X main.version=0.6.0-local' \
+      -ldflags '-X main.version=0.7.0-local' \
       -o "$provider_binary" .
   )
 }
@@ -218,6 +218,19 @@ northstar_downloads_folder_id() { northstar_numeric_id northstar_downloads_folde
 northstar_private_file_id() { northstar_numeric_id northstar_private_file_id HUBSPOT_NORTHSTAR_PRIVATE_FILE_ID; }
 northstar_public_file_id() { northstar_numeric_id northstar_public_file_id HUBSPOT_NORTHSTAR_PUBLIC_FILE_ID; }
 
+northstar_product_id() {
+  if id=$("$engine" -chdir="$root" output -raw northstar_support_product_id 2>/dev/null) && printf '%s\n' "$id" | grep -Eq '^[1-9][0-9]*$'; then
+    printf '%s\n' "$id"
+    return
+  fi
+  id=${HUBSPOT_NORTHSTAR_PRODUCT_ID:-}
+  printf '%s\n' "$id" | grep -Eq '^[1-9][0-9]*$' || {
+    echo "HUBSPOT_NORTHSTAR_PRODUCT_ID is required when the generated Product output is unavailable" >&2
+    exit 1
+  }
+  printf '%s\n' "$id"
+}
+
 northstar_membership_id() {
   if id=$("$engine" -chdir="$root" output -raw northstar_operator_membership_id 2>/dev/null) && printf '%s\n' "$id" | grep -Eq '^[1-9][0-9]*$'; then
     printf '%s\n' "$id"
@@ -258,6 +271,10 @@ verify_northstar_membership() {
 
 verify_northstar_crm_profile() {
   run_northstar_helper verify-profile "$(northstar_crm_profile_id)" "$(northstar_membership_id)"
+}
+
+verify_northstar_product() {
+  run_northstar_helper verify-product "$(northstar_product_id)"
 }
 
 northstar_form_id() {
@@ -333,6 +350,7 @@ case "$command" in
     "$engine" -chdir="$root/modules/files-configuration" test
     "$engine" -chdir="$root/modules/account-membership" test
     "$engine" -chdir="$root/modules/crm-user-profile" test
+    "$engine" -chdir="$root/modules/product-definition" test
     "$engine" -chdir="$root/examples/form-definition" get >/dev/null
     "$engine" -chdir="$root/examples/files-configuration" get >/dev/null
     "$engine" -chdir="$root/examples/files-configuration" test
@@ -365,6 +383,7 @@ case "$command" in
     verify_northstar_files
     verify_northstar_membership
     verify_northstar_crm_profile
+    verify_northstar_product
     ;;
   drift)
     load_hubspot_auth
@@ -373,6 +392,7 @@ case "$command" in
     run_northstar_helper drift "$form_id"
     run_northstar_helper drift-files "$(northstar_public_file_id)"
     run_northstar_helper drift-profile "$(northstar_crm_profile_id)" "$(northstar_membership_id)"
+    run_northstar_helper drift-product "$(northstar_product_id)"
     set +e
     "$engine" -chdir="$root" plan -detailed-exitcode -input=false -out="$plan"
     plan_exit_code=$?
@@ -390,6 +410,10 @@ case "$command" in
       echo "Northstar drift plan skipped the stable-keyed CRM user profile" >&2
       exit 1
     }
+    "$engine" -chdir="$root" show -json "$plan" | grep -q 'module.product_definitions.hubspot_product.this' || {
+      echo "Northstar drift plan skipped the stable-keyed Product definition" >&2
+      exit 1
+    }
     if [ "$mode" = local ]; then
       (cd "$bundle" && shasum -a 256 "bin/terraform-provider-hubspot" >"$(basename "$provider_digest")")
     fi
@@ -403,11 +427,13 @@ case "$command" in
     verify_northstar_files
     verify_northstar_membership
     verify_northstar_crm_profile
+    verify_northstar_product
     ;;
   refresh)
     load_hubspot_auth
     mkdir -p "$bundle"
     run_northstar_helper archive-for-refresh
+    run_northstar_helper archive-product-for-refresh "$(northstar_product_id)"
     run_northstar_helper drift-folder-path "$(northstar_brand_folder_id)" "$(northstar_downloads_folder_id)"
     set +e
     "$engine" -chdir="$root" plan -refresh-only -detailed-exitcode -input=false -out="$plan"
@@ -422,6 +448,7 @@ case "$command" in
     verify_northstar_files
     verify_northstar_membership
     verify_northstar_crm_profile
+    verify_northstar_product
     ;;
   output)
     "$engine" -chdir="$root" output
@@ -433,6 +460,7 @@ case "$command" in
     downloads_folder_id=$(northstar_downloads_folder_id)
     private_file_id=$(northstar_private_file_id)
     public_file_id=$(northstar_public_file_id)
+    product_id=$(northstar_product_id)
     adopt_resource 'module.crm_schema["contacts"].hubspot_property_group.this["ns_customer_context"]' 'contacts/ns_customer_context'
     adopt_resource 'module.crm_schema["contacts"].hubspot_property.this["ns_buyer_role"]' 'contacts/ns_buyer_role'
     adopt_resource 'module.crm_schema["contacts"].hubspot_property.this["ns_onboarding_status"]' 'contacts/ns_onboarding_status'
@@ -454,6 +482,7 @@ case "$command" in
     adopt_resource 'module.files_brand.hubspot_file.this["public_logo"]' "$public_file_id"
     adopt_resource 'module.account_memberships.hubspot_account_membership.this["northstar_operator"]' "email:$northstar_membership_email"
     adopt_resource 'module.crm_user_profiles.hubspot_crm_user_profile.this["northstar_operator"]' "membership:$(northstar_membership_id)"
+    adopt_resource 'module.product_definitions.hubspot_product.this["northstar_support"]' "$product_id"
     mkdir -p "$bundle"
     "$engine" -chdir="$root" plan -input=false -out="$plan"
     "$engine" -chdir="$root" apply -input=false "$plan"
@@ -462,6 +491,7 @@ case "$command" in
     verify_northstar_files
     verify_northstar_membership
     verify_northstar_crm_profile
+    verify_northstar_product
     ;;
   destroy-plan)
     load_hubspot_auth
@@ -476,6 +506,7 @@ case "$command" in
     } >"$bundle/files-ids"
     northstar_membership_id >"$bundle/membership-id"
     northstar_crm_profile_id >"$bundle/crm-profile-id"
+    northstar_product_id >"$bundle/product-id"
     "$engine" -chdir="$root" plan -destroy -input=false -out="$plan"
     "$engine" -chdir="$root" show -json "$plan" | grep -q 'module.forms.hubspot_form_definition.this' || {
       echo "Northstar destroy plan skipped the stable-keyed Form definition" >&2
@@ -499,6 +530,10 @@ case "$command" in
       echo "Northstar destroy plan skipped the stable-keyed CRM user profile" >&2
       exit 1
     }
+    "$engine" -chdir="$root" show -json "$plan" | grep -q 'module.product_definitions.hubspot_product.this' || {
+      echo "Northstar destroy plan skipped the stable-keyed Product definition" >&2
+      exit 1
+    }
     if [ "$mode" = local ]; then
       (cd "$bundle" && shasum -a 256 "bin/terraform-provider-hubspot" >"$(basename "$provider_digest")")
     fi
@@ -511,6 +546,7 @@ case "$command" in
     test "$(wc -l <"$bundle/files-ids" | tr -d ' ')" = 4 || { echo "reviewed destroy plan is missing exact Files identities" >&2; exit 1; }
     test -s "$bundle/membership-id" || { echo "reviewed destroy plan is missing its canonical membership identity" >&2; exit 1; }
     test -s "$bundle/crm-profile-id" || { echo "reviewed destroy plan is missing its canonical CRM profile identity" >&2; exit 1; }
+    test -s "$bundle/product-id" || { echo "reviewed destroy plan is missing its generated Product identity" >&2; exit 1; }
     form_id=$(cat "$bundle/form-id")
     "$engine" -chdir="$root" apply -input=false "$plan"
     run_northstar_helper verify-form-terminal "$form_id" >"$bundle/form-terminal.json"
@@ -549,6 +585,16 @@ case "$command" in
     grep -q '"cleanup":"passed"' "$bundle/crm-profile-terminal.json"
     ! grep -Eq "$crm_profile_id|$membership_id" "$bundle/crm-profile-terminal.json" || {
       echo "CRM profile terminal record exposed a raw identity" >&2
+      exit 1
+    }
+    product_id=$(cat "$bundle/product-id")
+    run_northstar_helper verify-product-terminal "$product_id" >"$bundle/product-terminal.json"
+    test -s "$bundle/product-terminal.json"
+    grep -q '"terminal":"archived"' "$bundle/product-terminal.json"
+    grep -q '"active_owned_products":0' "$bundle/product-terminal.json"
+    grep -q '"cleanup":"passed"' "$bundle/product-terminal.json"
+    ! grep -Fq "$product_id" "$bundle/product-terminal.json" || {
+      echo "Product terminal record exposed a raw identity" >&2
       exit 1
     }
     ;;
