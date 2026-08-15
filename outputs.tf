@@ -64,7 +64,7 @@ output "northstar_product_ids" {
 
 output "northstar_support_product_id" {
   description = "Generated identity of the stable-keyed Northstar support Product."
-  value       = module.product_definitions.ids["northstar_support"]
+  value       = try(module.product_definitions.ids["northstar_support"], null)
 }
 
 output "northstar_file_folder_ids" {
