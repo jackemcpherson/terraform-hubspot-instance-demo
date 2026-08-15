@@ -47,6 +47,16 @@ output "northstar_operator_membership_id" {
   value       = module.account_memberships.ids["northstar_operator"]
 }
 
+output "northstar_crm_user_profile_ids" {
+  description = "Canonical CRM user IDs keyed by stable Northstar profile identity."
+  value       = module.crm_user_profiles.ids
+}
+
+output "northstar_operator_crm_profile_id" {
+  description = "Canonical account-specific CRM user ID for the Northstar operator profile."
+  value       = module.crm_user_profiles.ids["northstar_operator"]
+}
+
 output "northstar_file_folder_ids" {
   description = "Generated HubSpot File folder IDs keyed by stable Northstar folder identity."
   value = {

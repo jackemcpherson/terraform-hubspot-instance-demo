@@ -32,6 +32,7 @@ terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/module
 terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/form-definition"
 terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/files-configuration"
 terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/account-membership"
+terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/crm-user-profile"
 ENGINE=tofu "$root/scripts/demo" local fmt
 ENGINE=tofu "$root/scripts/demo" local validate
 ENGINE=terraform "$root/scripts/demo" local validate
@@ -52,28 +53,32 @@ for engine in tofu terraform; do
   printf '%s\n' "$cumulative_graph" | grep -Fq 'module.files_root.hubspot_file.this (expand)" -> "[root] module.files_root.hubspot_file_folder.this (expand)'
   printf '%s\n' "$cumulative_graph" | grep -Fq 'module.files_brand.hubspot_file.this (expand)" -> "[root] module.files_brand.hubspot_file_folder.this (expand)'
   printf '%s\n' "$cumulative_graph" | grep -Eq 'module.files_brand.var.parent_folder_id \(expand(, input)?\)" -> "\[root\] module.files_root.output.folder_ids \(expand\)'
+  printf '%s\n' "$cumulative_graph" | grep -Eq 'module.crm_user_profiles.var.profiles \(expand(, input)?\)" -> "\[root\] module.account_memberships.output.ids \(expand\)'
 done
 ENGINE=tofu "$root/scripts/demo" local test
 ENGINE=terraform "$root/scripts/demo" local test
 actionlint
 
-grep -q 'version = "= 0.5.0"' "$root/versions.tf" || { echo "the cumulative demo must pin provider v0.5.0" >&2; exit 1; }
+grep -q 'version = "= 0.6.0"' "$root/versions.tf" || { echo "the cumulative demo must pin provider v0.6.0" >&2; exit 1; }
 grep -q 'module "forms"' "$root/forms.tf" || { echo "the cumulative demo is missing its Forms module" >&2; exit 1; }
 grep -q 'northstar_contact_form_id' "$root/outputs.tf" || { echo "the cumulative demo is missing its generated Form ID output" >&2; exit 1; }
 grep -q 'northstar_file_folder_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable generated folder ID outputs" >&2; exit 1; }
 grep -q 'northstar_file_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable generated file ID outputs" >&2; exit 1; }
 grep -q 'northstar_account_membership_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable canonical membership ID outputs" >&2; exit 1; }
+grep -q 'northstar_crm_user_profile_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable canonical CRM profile ID outputs" >&2; exit 1; }
 grep -q 'module.forms.hubspot_form_definition.this' "$root/scripts/demo" || { echo "Northstar lifecycle skipped exact-ID Form adoption" >&2; exit 1; }
 grep -q 'module.files_root.hubspot_file.this' "$root/scripts/demo" || { echo "Northstar lifecycle skipped exact-ID Managed file adoption" >&2; exit 1; }
 grep -q 'verify-files-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped Files terminal cleanup proof" >&2; exit 1; }
 grep -q 'verify-form-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped terminal Form cleanup proof" >&2; exit 1; }
 grep -q 'verify-membership-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped membership cleanup proof" >&2; exit 1; }
+grep -q 'verify-profile-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped retained CRM profile proof" >&2; exit 1; }
 grep -q 'HUBSPOT_DEMO_EXPECTED_COMMIT' "$root/scripts/demo" || { echo "Northstar lifecycle skipped exact demo provenance" >&2; exit 1; }
 
 for engine in tofu terraform; do
   lock="$root/locks/$engine/.terraform.lock.hcl"
   test -f "$lock" || { echo "committed $engine registry lock is missing" >&2; exit 1; }
-  # Registry locks stay on the last published release until v0.5.0 exists.
+  # Registry locks stay on the last provider release captured by this branch;
+  # v0.6.0 locks are generated only after immutable publication.
   grep -q 'version     = "0.4.0"' "$lock"
   test "$(grep -c '"h1:' "$lock")" = 13 || { echo "$engine registry lock must cover all 13 release platforms" >&2; exit 1; }
 done
