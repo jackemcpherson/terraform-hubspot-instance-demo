@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: jackemcpherson/terraform-provider-hubspot
-          ref: 2417d7db0f37532a01afff35a2f69668066fdbbf
+          ref: 02ba65c2bb7260dfb46a53009fb5ca7ea9a42fb0
           path: .provider
           persist-credentials: false
       - name: Set up Go
