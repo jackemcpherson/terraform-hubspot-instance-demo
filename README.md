@@ -1,17 +1,18 @@
 # Northstar HubSpot CRM Demo
 
 This repository is a realistic consumer of
-`jackemcpherson/hubspot` `v0.5.0`. Its cumulative root manages the CRM property
+`jackemcpherson/hubspot` `v0.6.0`. Its cumulative root manages the CRM property
 schema, one stable-keyed contact Form definition, two explicit File folder
-levels, two stable-keyed Managed files, and one guarded account membership for
-Northstar Cloud, a fictional B2B software company, in a disposable HubSpot Free
-portal.
+levels, two stable-keyed Managed files, one guarded account membership, and its
+separate CRM user profile for Northstar Cloud, a fictional B2B software
+company, in a disposable HubSpot Free portal.
 
 The desired state contains four property groups, ten non-sensitive properties
 across contacts, companies, deals, and tickets, one `ns_contact_us` form, and
 private plus public non-indexable tiny inert files under explicit generated
-folder IDs, and one caller-supplied account membership with welcome email
-disabled.
+folder IDs, one caller-supplied account membership with welcome email disabled,
+and selected CRM profile properties joined through that membership's canonical
+Settings ID.
 Ten properties is a deliberate
 fixture size, not provider admission control or a claimed API-created-property
 limit. Remote create responses remain authoritative.
@@ -39,6 +40,12 @@ email is supplied through `HUBSPOT_NORTHSTAR_MEMBERSHIP_EMAIL`; the repository
 does not embed a portal identity. The module exposes the canonical Settings user
 ID, requires an explicit welcome-email choice, and opts into removal only
 because this root targets a disposable portal.
+
+The `northstar_operator` profile key is the same stable local identity, but the
+profile remains a separate resource. It manages job title, availability,
+timezone, and weekday working hours. Null profile properties remain unmanaged.
+The profile module stores the account-specific CRM user ID and depends on the
+membership module's Settings ID through an ordinary reference.
 
 The cumulative root and Files example under `examples/files-configuration`
 compose two hierarchy levels through generated `folder_ids`, with one private
@@ -68,9 +75,10 @@ address:
 export HUBSPOT_NORTHSTAR_MEMBERSHIP_EMAIL='owned-fixture@example.com'
 ```
 
-Never use a production user. The token needs either HubSpot Settings user
-read/write scopes or the proven CRM users read/write alternative, in addition
-to the cumulative CRM schema, Forms, and Files scopes.
+Never use a production user. The token needs Settings user read/write access for
+membership plus the exact `crm.objects.users.read` and
+`crm.objects.users.write` pair for the CRM profile, in addition to the
+cumulative CRM schema, Forms, and Files scopes.
 
 Then run:
 
@@ -101,7 +109,7 @@ ENGINE=terraform ./scripts/demo local apply
 
 1. Open `schemas.tf` to show the model and reusable module.
 2. Run `make plan` to propose four groups, ten properties, one contact form, two
-   folders, two Managed files, and one account membership.
+   folders, two Managed files, one account membership, and its CRM profile.
 3. Run `make apply` to create the planned cumulative configuration.
 4. Open HubSpot property, Forms, and File Manager settings and filter for `ns_`.
 5. Change one property label in the HubSpot interface.
@@ -125,10 +133,14 @@ deletion proves active absence but leaves HubSpot-managed Trash retention in
 place. Membership teardown requires the local removal opt-in, rereads the exact
 Settings ID and email, refuses a Super Admin, and proves both identities absent.
 Remove the resource from state instead when the portal membership must remain.
+CRM profile teardown happens first, performs no remote write, and leaves the
+managed profile values as a documented non-destructive residual. Terminal
+verification proves the membership is absent while the exact CRM profile and
+retained values remain.
 
 ## Published Release
 
-After `v0.5.0` is available from both registries, regenerate both committed
+After `v0.6.0` is available from both registries, regenerate both committed
 registry locks and use the exact committed pin rather than the local development
 override:
 
@@ -160,7 +172,7 @@ ENGINE=terraform make registry-destroy-apply
 
 ### Release Checklist
 
-1. Publish provider `v0.5.0` and confirm both public registries list it.
+1. Publish provider `v0.6.0` and confirm both public registries list it.
 2. Run `make registry-init` and `ENGINE=terraform make registry-init`, then
    review each selected provider source and checksum set.
 3. Commit both registry-generated files under `locks/` before applying.
@@ -172,7 +184,9 @@ Release automation can reconstruct local state with `scripts/demo local adopt`.
 It uses the ten known properties and four known groups, imports the Form, File
 folders, and Managed files by generated IDs from stable module outputs, and
 imports the membership through the explicit `email:` form before storing its
-canonical Settings ID. When no state output exists for the other generated
+canonical Settings ID, then imports the profile through the explicit
+`membership:` form before storing its canonical CRM ID. When no state output
+exists for the other generated
 identities, supply `HUBSPOT_NORTHSTAR_FORM_ID`,
 `HUBSPOT_NORTHSTAR_BRAND_FOLDER_ID`, `HUBSPOT_NORTHSTAR_DOWNLOADS_FOLDER_ID`,
 `HUBSPOT_NORTHSTAR_PRIVATE_FILE_ID`, and `HUBSPOT_NORTHSTAR_PUBLIC_FILE_ID` from

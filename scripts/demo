@@ -95,7 +95,7 @@ build_local_provider() {
   (
     cd "$provider_repo"
     CGO_ENABLED=0 GOTOOLCHAIN=local go build -trimpath \
-      -ldflags '-X main.version=0.5.0-local' \
+      -ldflags '-X main.version=0.6.0-local' \
       -o "$provider_binary" .
   )
 }
@@ -231,6 +231,19 @@ northstar_membership_id() {
   printf '%s\n' "$id"
 }
 
+northstar_crm_profile_id() {
+  if id=$("$engine" -chdir="$root" output -raw northstar_operator_crm_profile_id 2>/dev/null) && printf '%s\n' "$id" | grep -Eq '^[1-9][0-9]*$'; then
+    printf '%s\n' "$id"
+    return
+  fi
+  id=${HUBSPOT_NORTHSTAR_CRM_PROFILE_ID:-}
+  printf '%s\n' "$id" | grep -Eq '^[1-9][0-9]*$' || {
+    echo "HUBSPOT_NORTHSTAR_CRM_PROFILE_ID is required when the generated CRM profile output is unavailable" >&2
+    exit 1
+  }
+  printf '%s\n' "$id"
+}
+
 verify_northstar_files() {
   run_northstar_helper verify-files \
     "$(northstar_brand_folder_id)" \
@@ -241,6 +254,10 @@ verify_northstar_files() {
 
 verify_northstar_membership() {
   run_northstar_helper verify-membership "$(northstar_membership_id)" "$northstar_membership_email"
+}
+
+verify_northstar_crm_profile() {
+  run_northstar_helper verify-profile "$(northstar_crm_profile_id)" "$(northstar_membership_id)"
 }
 
 northstar_form_id() {
@@ -315,6 +332,7 @@ case "$command" in
     "$engine" -chdir="$root/modules/form-definition" test
     "$engine" -chdir="$root/modules/files-configuration" test
     "$engine" -chdir="$root/modules/account-membership" test
+    "$engine" -chdir="$root/modules/crm-user-profile" test
     "$engine" -chdir="$root/examples/form-definition" get >/dev/null
     "$engine" -chdir="$root/examples/files-configuration" get >/dev/null
     "$engine" -chdir="$root/examples/files-configuration" test
@@ -346,6 +364,7 @@ case "$command" in
     require_form_output
     verify_northstar_files
     verify_northstar_membership
+    verify_northstar_crm_profile
     ;;
   drift)
     load_hubspot_auth
@@ -353,6 +372,7 @@ case "$command" in
     form_id=$(northstar_form_id)
     run_northstar_helper drift "$form_id"
     run_northstar_helper drift-files "$(northstar_public_file_id)"
+    run_northstar_helper drift-profile "$(northstar_crm_profile_id)" "$(northstar_membership_id)"
     set +e
     "$engine" -chdir="$root" plan -detailed-exitcode -input=false -out="$plan"
     plan_exit_code=$?
@@ -364,6 +384,10 @@ case "$command" in
     }
     "$engine" -chdir="$root" show -json "$plan" | grep -q 'module.files_brand.hubspot_file.this' || {
       echo "Northstar drift plan skipped the stable-keyed Managed file" >&2
+      exit 1
+    }
+    "$engine" -chdir="$root" show -json "$plan" | grep -q 'module.crm_user_profiles.hubspot_crm_user_profile.this' || {
+      echo "Northstar drift plan skipped the stable-keyed CRM user profile" >&2
       exit 1
     }
     if [ "$mode" = local ]; then
@@ -378,6 +402,7 @@ case "$command" in
     require_form_output
     verify_northstar_files
     verify_northstar_membership
+    verify_northstar_crm_profile
     ;;
   refresh)
     load_hubspot_auth
@@ -396,6 +421,7 @@ case "$command" in
     require_form_output
     verify_northstar_files
     verify_northstar_membership
+    verify_northstar_crm_profile
     ;;
   output)
     "$engine" -chdir="$root" output
@@ -427,6 +453,7 @@ case "$command" in
     adopt_resource 'module.files_root.hubspot_file.this["private_readme"]' "$private_file_id"
     adopt_resource 'module.files_brand.hubspot_file.this["public_logo"]' "$public_file_id"
     adopt_resource 'module.account_memberships.hubspot_account_membership.this["northstar_operator"]' "email:$northstar_membership_email"
+    adopt_resource 'module.crm_user_profiles.hubspot_crm_user_profile.this["northstar_operator"]' "membership:$(northstar_membership_id)"
     mkdir -p "$bundle"
     "$engine" -chdir="$root" plan -input=false -out="$plan"
     "$engine" -chdir="$root" apply -input=false "$plan"
@@ -434,6 +461,7 @@ case "$command" in
     require_form_output
     verify_northstar_files
     verify_northstar_membership
+    verify_northstar_crm_profile
     ;;
   destroy-plan)
     load_hubspot_auth
@@ -447,6 +475,7 @@ case "$command" in
       northstar_public_file_id
     } >"$bundle/files-ids"
     northstar_membership_id >"$bundle/membership-id"
+    northstar_crm_profile_id >"$bundle/crm-profile-id"
     "$engine" -chdir="$root" plan -destroy -input=false -out="$plan"
     "$engine" -chdir="$root" show -json "$plan" | grep -q 'module.forms.hubspot_form_definition.this' || {
       echo "Northstar destroy plan skipped the stable-keyed Form definition" >&2
@@ -466,6 +495,10 @@ case "$command" in
       echo "Northstar destroy plan skipped the stable-keyed account membership" >&2
       exit 1
     }
+    "$engine" -chdir="$root" show -json "$plan" | grep -q 'module.crm_user_profiles.hubspot_crm_user_profile.this' || {
+      echo "Northstar destroy plan skipped the stable-keyed CRM user profile" >&2
+      exit 1
+    }
     if [ "$mode" = local ]; then
       (cd "$bundle" && shasum -a 256 "bin/terraform-provider-hubspot" >"$(basename "$provider_digest")")
     fi
@@ -477,6 +510,7 @@ case "$command" in
     test -s "$bundle/form-id" || { echo "reviewed destroy plan is missing its exact Form identity" >&2; exit 1; }
     test "$(wc -l <"$bundle/files-ids" | tr -d ' ')" = 4 || { echo "reviewed destroy plan is missing exact Files identities" >&2; exit 1; }
     test -s "$bundle/membership-id" || { echo "reviewed destroy plan is missing its canonical membership identity" >&2; exit 1; }
+    test -s "$bundle/crm-profile-id" || { echo "reviewed destroy plan is missing its canonical CRM profile identity" >&2; exit 1; }
     form_id=$(cat "$bundle/form-id")
     "$engine" -chdir="$root" apply -input=false "$plan"
     run_northstar_helper verify-form-terminal "$form_id" >"$bundle/form-terminal.json"
@@ -505,6 +539,16 @@ case "$command" in
     grep -q '"cleanup":"passed"' "$bundle/membership-terminal.json"
     ! grep -Eq "$membership_id|$northstar_membership_email" "$bundle/membership-terminal.json" || {
       echo "terminal record exposed a raw membership identity" >&2
+      exit 1
+    }
+    crm_profile_id=$(cat "$bundle/crm-profile-id")
+    run_northstar_helper verify-profile-terminal "$crm_profile_id" "$membership_id" >"$bundle/crm-profile-terminal.json"
+    test -s "$bundle/crm-profile-terminal.json"
+    grep -q '"residual":"retained_profile_values"' "$bundle/crm-profile-terminal.json"
+    grep -q '"remote_write":"none"' "$bundle/crm-profile-terminal.json"
+    grep -q '"cleanup":"passed"' "$bundle/crm-profile-terminal.json"
+    ! grep -Eq "$crm_profile_id|$membership_id" "$bundle/crm-profile-terminal.json" || {
+      echo "CRM profile terminal record exposed a raw identity" >&2
       exit 1
     }
     ;;

@@ -2,7 +2,7 @@
 set -eu
 
 source_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-grep -q -- '-X main.version=0.5.0-local' "$source_root/scripts/demo"
+grep -q -- '-X main.version=0.6.0-local' "$source_root/scripts/demo"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 root="$tmp/demo"
@@ -29,6 +29,7 @@ case "$*" in
   'output -raw northstar_private_file_id') printf '%s\n' 20001 ;;
   'output -raw northstar_public_file_id') printf '%s\n' 20002 ;;
   'output -raw northstar_operator_membership_id') printf '%s\n' 30001 ;;
+  'output -raw northstar_operator_crm_profile_id') printf '%s\n' 40001 ;;
   'plan -detailed-exitcode -input=false'|'plan -detailed-exitcode -input=false -out='*)
     if test "${PLAN_EXIT_ONCE:-}" = 1 && test ! -e "$PLAN_EXIT_ONCE_MARKER"; then
       : >"$PLAN_EXIT_ONCE_MARKER"
@@ -37,7 +38,7 @@ case "$*" in
     exit "${PLAN_EXIT:-0}"
     ;;
   'plan -refresh-only -detailed-exitcode -input=false -out='*) exit 2 ;;
-  'show -json '*) printf '%s\n' '{"addresses":["module.forms.hubspot_form_definition.this","module.files_root.hubspot_file.this","module.files_root.hubspot_file_folder.this","module.files_brand.hubspot_file.this","module.files_brand.hubspot_file_folder.this","module.account_memberships.hubspot_account_membership.this"]}' ;;
+  'show -json '*) printf '%s\n' '{"addresses":["module.forms.hubspot_form_definition.this","module.files_root.hubspot_file.this","module.files_root.hubspot_file_folder.this","module.files_brand.hubspot_file.this","module.files_brand.hubspot_file_folder.this","module.account_memberships.hubspot_account_membership.this","module.crm_user_profiles.hubspot_crm_user_profile.this"]}' ;;
 esac
 EOF
 chmod +x "$bin/tofu"
@@ -52,6 +53,7 @@ case "$1" in
   verify-form-terminal) printf '%s\n' '{"terminal":"archived","active_owned_forms":0,"cleanup":"passed"}' ;;
   verify-files-terminal) printf '%s\n' '{"active_owned_files":0,"active_owned_folders":0,"cleanup":"passed"}' ;;
   verify-membership-terminal) printf '%s\n' '{"active_owned_memberships":0,"cleanup":"passed"}' ;;
+  verify-profile-terminal) printf '%s\n' '{"residual":"retained_profile_values","remote_write":"none","cleanup":"passed"}' ;;
 esac
 EOF
 chmod +x "$tmp/helper"
@@ -64,11 +66,13 @@ run() {
 run verify
 grep -q '^helper:verify-files 10001 10002 20001 20002$' "$log"
 grep -q '^helper:verify-membership 30001 northstar-operator@example.com$' "$log"
+grep -q '^helper:verify-profile 40001 30001$' "$log"
 
 : >"$log"
 PLAN_EXIT=2 run drift
 grep -q '^helper:drift 00000000-0000-4000-8000-000000000001$' "$log"
 grep -q '^helper:drift-files 20002$' "$log"
+grep -q '^helper:drift-profile 40001 30001$' "$log"
 unset PLAN_EXIT
 
 : >"$log"
@@ -86,6 +90,7 @@ grep -q '^engine:import -input=false module.files_brand.hubspot_file_folder.this
 grep -q '^engine:import -input=false module.files_root.hubspot_file.this\["private_readme"\] 20001$' "$log"
 grep -q '^engine:import -input=false module.files_brand.hubspot_file.this\["public_logo"\] 20002$' "$log"
 grep -q '^engine:import -input=false module.account_memberships.hubspot_account_membership.this\["northstar_operator"\] email:northstar-operator@example.com$' "$log"
+grep -q '^engine:import -input=false module.crm_user_profiles.hubspot_crm_user_profile.this\["northstar_operator"\] membership:30001$' "$log"
 grep -q '^engine:plan -input=false -out=.*plan\.tfplan$' "$log"
 grep -q '^engine:apply -input=false .*plan\.tfplan$' "$log"
 test "$(grep -c '^engine:plan -detailed-exitcode -input=false$' "$log")" = 2
@@ -95,6 +100,7 @@ run destroy-plan
 run destroy-apply
 grep -q '^helper:verify-files-terminal 10001 10002 20001 20002$' "$log"
 grep -q '^helper:verify-membership-terminal 30001 northstar-operator@example.com$' "$log"
+grep -q '^helper:verify-profile-terminal 40001 30001$' "$log"
 test -s "$root/.demo/registry-tofu-destroy/files-terminal.json"
 if grep -Eq '10001|10002|20001|20002' "$root/.demo/registry-tofu-destroy/files-terminal.json"; then
   echo 'Files terminal evidence exposed raw identities' >&2
@@ -102,6 +108,10 @@ if grep -Eq '10001|10002|20001|20002' "$root/.demo/registry-tofu-destroy/files-t
 fi
 if grep -Eq '30001|northstar-operator@example.com' "$root/.demo/registry-tofu-destroy/membership-terminal.json"; then
   echo 'membership terminal evidence exposed raw identities' >&2
+  exit 1
+fi
+if grep -Eq '40001|30001' "$root/.demo/registry-tofu-destroy/crm-profile-terminal.json"; then
+  echo 'CRM profile terminal evidence exposed raw identities' >&2
   exit 1
 fi
 

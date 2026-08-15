@@ -4,7 +4,7 @@ terraform {
   required_providers {
     hubspot = {
       source  = "jackemcpherson/hubspot"
-      version = ">= 0.4.0, < 0.7.0"
+      version = ">= 0.6.0, < 0.7.0"
     }
   }
 }
