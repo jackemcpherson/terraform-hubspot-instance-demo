@@ -34,6 +34,12 @@ mock_provider "hubspot" {
     }
   }
 
+  mock_resource "hubspot_product" {
+    defaults = {
+      id = "70001"
+    }
+  }
+
   mock_data "hubspot_property_definition" {
     defaults = {
       id         = "contacts/email"
@@ -59,6 +65,15 @@ run "applies_cumulative_configuration" {
   assert {
     condition     = toset(keys(local.schemas)) == toset(["contacts", "companies", "deals", "tickets"])
     error_message = "The demo must cover all four supported CRM object types."
+  }
+
+  assert {
+    condition = (
+      keys(module.product_definitions.ids) == ["northstar_support"] &&
+      output.northstar_support_product_id == module.product_definitions.ids["northstar_support"] &&
+      output.northstar_product_ids == module.product_definitions.ids
+    )
+    error_message = "The cumulative demo must expose one stable-keyed standard Product definition."
   }
 
   assert {
