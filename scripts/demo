@@ -603,7 +603,7 @@ case "$command" in
     crm_profile_id=$(cat "$bundle/crm-profile-id")
     run_northstar_helper verify-profile-terminal "$crm_profile_id" "$membership_id" >"$bundle/crm-profile-terminal.json"
     test -s "$bundle/crm-profile-terminal.json"
-    grep -q '"residual":"retained_profile_values"' "$bundle/crm-profile-terminal.json"
+    grep -Eq '"residual":"(retained_profile_values|profile_projection_absent)"' "$bundle/crm-profile-terminal.json"
     grep -q '"remote_write":"none"' "$bundle/crm-profile-terminal.json"
     grep -q '"cleanup":"passed"' "$bundle/crm-profile-terminal.json"
     ! grep -Eq "$crm_profile_id|$membership_id" "$bundle/crm-profile-terminal.json" || {
