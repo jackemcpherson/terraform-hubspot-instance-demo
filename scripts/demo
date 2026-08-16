@@ -453,6 +453,9 @@ case "$command" in
       -target='module.files_root.hubspot_file_folder.this["brand"]' \
       -input=false -out="$folder_plan"
     "$engine" -chdir="$root" apply -input=false "$folder_plan"
+    # HubSpot can complete the ancestor task while leaving the child's derived
+    # path stale. Re-submit the exact owned child in place before verification.
+    run_northstar_helper repair-folder-path "$brand_folder_id" "$downloads_folder_id"
     (
       HUBSPOT_NORTHSTAR_FILES_STAGED=1
       export HUBSPOT_NORTHSTAR_FILES_STAGED
