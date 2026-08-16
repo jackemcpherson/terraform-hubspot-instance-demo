@@ -96,12 +96,13 @@ refresh_repair_calls=$(sed -n \
   -e '/^engine:apply -input=false .*\/plan\.tfplan$/ { s/.*/apply-main/; p; }' \
   -e '/^engine:plan -target=module.files_root.hubspot_file_folder.this\["brand"\] -input=false -out=.*\/folder-plan\.tfplan$/ { s/.*/plan-folder/; p; }' \
   -e '/^engine:apply -input=false .*\/folder-plan\.tfplan$/ { s/.*/apply-folder/; p; }' \
+  -e '/^helper:repair-folder-path 10001 10002$/ { s/.*/repair-child/; p; }' \
   -e '/^helper:verify-files-staged:verify-files 10001 10002 20001 20002$/ { s/.*/verify-staged/; p; }' \
   -e '/^engine:plan -input=false -out=.*\/plan\.tfplan$/ { s/.*/plan-main/; p; }' \
   -e '/^engine:plan -detailed-exitcode -input=false$/ { s/.*/plan-convergence/; p; }' \
   "$log")
-test "$refresh_repair_calls" = "$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s' \
-  apply-main plan-folder apply-folder verify-staged plan-main apply-main \
+test "$refresh_repair_calls" = "$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s' \
+  apply-main plan-folder apply-folder repair-child verify-staged plan-main apply-main \
   plan-convergence plan-convergence)"
 grep -q '^helper:verify-files 10001 10002 20001 20002$' "$log"
 test "$(grep -c '^engine:plan -detailed-exitcode -input=false$' "$log")" = 2
