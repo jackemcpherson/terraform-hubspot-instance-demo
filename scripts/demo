@@ -437,6 +437,7 @@ case "$command" in
     brand_folder_id=$(northstar_brand_folder_id)
     downloads_folder_id=$(northstar_downloads_folder_id)
     private_file_id=$(northstar_private_file_id)
+    public_file_id=$(northstar_public_file_id)
     run_northstar_helper stage-file-for-folder-rename \
       "$private_file_id" "$brand_folder_id" "$downloads_folder_id"
     run_northstar_helper drift-folder-path "$brand_folder_id" "$downloads_folder_id"
@@ -454,13 +455,14 @@ case "$command" in
       -input=false -out="$folder_plan"
     "$engine" -chdir="$root" apply -input=false "$folder_plan"
     # HubSpot can complete the ancestor task while leaving the child's derived
-    # path stale. Re-submit the exact owned child in place before verification.
-    run_northstar_helper repair-folder-path "$brand_folder_id" "$downloads_folder_id"
+    # path stale. Empty and rename the exact child away and back before checks.
+    run_northstar_helper repair-folder-path \
+      "$brand_folder_id" "$downloads_folder_id" "$private_file_id" "$public_file_id"
     (
       HUBSPOT_NORTHSTAR_FILES_STAGED=1
       export HUBSPOT_NORTHSTAR_FILES_STAGED
       run_northstar_helper verify-files \
-        "$brand_folder_id" "$downloads_folder_id" "$private_file_id" "$(northstar_public_file_id)"
+        "$brand_folder_id" "$downloads_folder_id" "$private_file_id" "$public_file_id"
     )
     "$engine" -chdir="$root" plan -input=false -out="$plan"
     "$engine" -chdir="$root" apply -input=false "$plan"
