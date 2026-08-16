@@ -59,7 +59,7 @@ case "$1" in
   verify-form-terminal) printf '%s\n' '{"terminal":"archived","active_owned_forms":0,"cleanup":"passed"}' ;;
   verify-files-terminal) printf '%s\n' '{"active_owned_files":0,"active_owned_folders":0,"cleanup":"passed"}' ;;
   verify-membership-terminal) printf '%s\n' '{"active_owned_memberships":0,"cleanup":"passed"}' ;;
-  verify-profile-terminal) printf '%s\n' '{"residual":"retained_profile_values","remote_write":"none","cleanup":"passed"}' ;;
+  verify-profile-terminal) printf '{"residual":"%s","remote_write":"none","cleanup":"passed"}\n' "$CRM_PROFILE_TERMINAL_RESIDUAL" ;;
   verify-product-terminal) printf '%s\n' '{"terminal":"archived","active_owned_products":0,"cleanup":"passed"}' ;;
 esac
 EOF
@@ -67,6 +67,7 @@ chmod +x "$tmp/helper"
 
 run() {
   PATH="$bin:$PATH" CALL_LOG="$log" HUBSPOT_ACCESS_TOKEN=test HUBSPOT_NORTHSTAR_HELPER_SCRIPT="$tmp/helper" \
+    CRM_PROFILE_TERMINAL_RESIDUAL="${CRM_PROFILE_TERMINAL_RESIDUAL:-retained_profile_values}" \
     HUBSPOT_NORTHSTAR_FILES_PREFIX=ns_123_1_ HUBSPOT_NORTHSTAR_MEMBERSHIP_EMAIL=northstar-operator@example.com ENGINE=tofu "$root/scripts/demo" registry "$1"
 }
 
@@ -121,29 +122,32 @@ grep -q '^engine:plan -input=false -out=.*plan\.tfplan$' "$log"
 grep -q '^engine:apply -input=false .*plan\.tfplan$' "$log"
 test "$(grep -c '^engine:plan -detailed-exitcode -input=false$' "$log")" = 2
 
-: >"$log"
-run destroy-plan
-run destroy-apply
-grep -q '^helper:verify-files-terminal 10001 10002 20001 20002$' "$log"
-grep -q '^helper:verify-membership-terminal 30001 northstar-operator@example.com$' "$log"
-grep -q '^helper:verify-profile-terminal 40001 30001$' "$log"
-grep -q '^helper:verify-product-terminal 70001$' "$log"
-test -s "$root/.demo/registry-tofu-destroy/files-terminal.json"
-if grep -Eq '10001|10002|20001|20002' "$root/.demo/registry-tofu-destroy/files-terminal.json"; then
-  echo 'Files terminal evidence exposed raw identities' >&2
-  exit 1
-fi
-if grep -Eq '30001|northstar-operator@example.com' "$root/.demo/registry-tofu-destroy/membership-terminal.json"; then
-  echo 'membership terminal evidence exposed raw identities' >&2
-  exit 1
-fi
-if grep -Eq '40001|30001' "$root/.demo/registry-tofu-destroy/crm-profile-terminal.json"; then
-  echo 'CRM profile terminal evidence exposed raw identities' >&2
-  exit 1
-fi
-if grep -Eq '70001' "$root/.demo/registry-tofu-destroy/product-terminal.json"; then
-  echo 'Product terminal evidence exposed raw identities' >&2
-  exit 1
-fi
+for residual in retained_profile_values profile_projection_absent; do
+  : >"$log"
+  CRM_PROFILE_TERMINAL_RESIDUAL=$residual run destroy-plan
+  CRM_PROFILE_TERMINAL_RESIDUAL=$residual run destroy-apply
+  grep -q '^helper:verify-files-terminal 10001 10002 20001 20002$' "$log"
+  grep -q '^helper:verify-membership-terminal 30001 northstar-operator@example.com$' "$log"
+  grep -q '^helper:verify-profile-terminal 40001 30001$' "$log"
+  grep -q '^helper:verify-product-terminal 70001$' "$log"
+  grep -q "\"residual\":\"$residual\"" "$root/.demo/registry-tofu-destroy/crm-profile-terminal.json"
+  test -s "$root/.demo/registry-tofu-destroy/files-terminal.json"
+  if grep -Eq '10001|10002|20001|20002' "$root/.demo/registry-tofu-destroy/files-terminal.json"; then
+    echo 'Files terminal evidence exposed raw identities' >&2
+    exit 1
+  fi
+  if grep -Eq '30001|northstar-operator@example.com' "$root/.demo/registry-tofu-destroy/membership-terminal.json"; then
+    echo 'membership terminal evidence exposed raw identities' >&2
+    exit 1
+  fi
+  if grep -Eq '40001|30001' "$root/.demo/registry-tofu-destroy/crm-profile-terminal.json"; then
+    echo 'CRM profile terminal evidence exposed raw identities' >&2
+    exit 1
+  fi
+  if grep -Eq '70001' "$root/.demo/registry-tofu-destroy/product-terminal.json"; then
+    echo 'Product terminal evidence exposed raw identities' >&2
+    exit 1
+  fi
+done
 
 echo 'Northstar demo lifecycle contract tests passed'

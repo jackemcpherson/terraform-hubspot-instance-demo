@@ -73,7 +73,7 @@ grep -q 'module.files_root.hubspot_file.this' "$root/scripts/demo" || { echo "No
 grep -q 'verify-files-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped Files terminal cleanup proof" >&2; exit 1; }
 grep -q 'verify-form-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped terminal Form cleanup proof" >&2; exit 1; }
 grep -q 'verify-membership-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped membership cleanup proof" >&2; exit 1; }
-grep -q 'verify-profile-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped retained CRM profile proof" >&2; exit 1; }
+grep -q 'verify-profile-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped CRM profile terminal proof" >&2; exit 1; }
 grep -q 'verify-product-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped Product terminal cleanup proof" >&2; exit 1; }
 grep -q 'HUBSPOT_DEMO_EXPECTED_COMMIT' "$root/scripts/demo" || { echo "Northstar lifecycle skipped exact demo provenance" >&2; exit 1; }
 
