@@ -15,7 +15,7 @@ check_version() {
   }
 }
 
-check_version "$(go version | awk '{print $3}')" "go1.26.5" "Go"
+check_version "$(go version | awk '{print $3}')" "go1.26.6" "Go"
 check_version "$(tofu version | awk 'NR == 1 {sub(/^v/, "", $2); print $2}')" "1.12.3" "OpenTofu"
 check_version "$(terraform version | awk 'NR == 1 {sub(/^v/, "", $2); print $2}')" "1.15.8" "Terraform"
 check_version "$(tflint --version | awk 'NR == 1 {print $3}')" "0.63.1" "TFLint"
@@ -23,14 +23,67 @@ check_version "$(terraform-docs --version | awk 'NR == 1 {sub(/^v/, "", $3); pri
 check_version "$(shellcheck --version | awk '/^version:/ {print $2}')" "0.11.0" "ShellCheck"
 check_version "$(actionlint --version | awk 'NR == 1 {sub(/^v/, "", $1); print $1}')" "1.7.12" "actionlint"
 
-sh -n "$root/scripts/demo" "$root/scripts/check"
-shellcheck "$root/scripts/demo" "$root/scripts/check"
+sh -n "$root/scripts/demo" "$root/scripts/demo_test" "$root/scripts/check"
+shellcheck "$root/scripts/demo" "$root/scripts/demo_test" "$root/scripts/check"
+"$root/scripts/demo_test"
 tflint --init --config "$root/.tflint.hcl"
 tflint --recursive --config "$root/.tflint.hcl"
 terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/crm-schema"
+terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/form-definition"
+terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/files-configuration"
+terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/account-membership"
+terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/crm-user-profile"
+terraform-docs --config "$root/.terraform-docs.yml" --output-check "$root/modules/product-definition"
 ENGINE=tofu "$root/scripts/demo" local fmt
 ENGINE=tofu "$root/scripts/demo" local validate
 ENGINE=terraform "$root/scripts/demo" local validate
+for engine in tofu terraform; do
+  TF_CLI_CONFIG_FILE="$root/.demo/local-$engine-scratch/cli.tfrc" "$engine" -chdir="$root/examples/form-definition" get >/dev/null
+  TF_CLI_CONFIG_FILE="$root/.demo/local-$engine-scratch/cli.tfrc" "$engine" -chdir="$root/examples/form-definition" validate
+  TF_CLI_CONFIG_FILE="$root/.demo/local-$engine-scratch/cli.tfrc" "$engine" -chdir="$root/examples/files-configuration" get >/dev/null
+  TF_CLI_CONFIG_FILE="$root/.demo/local-$engine-scratch/cli.tfrc" "$engine" -chdir="$root/examples/files-configuration" validate
+
+  # These create dependencies are reversed by both engines during destroy: files
+  # precede their folders, and the composed leaf level precedes its parent.
+  graph=$(TF_CLI_CONFIG_FILE="$root/.demo/local-$engine-scratch/cli.tfrc" "$engine" -chdir="$root/examples/files-configuration" graph -type=plan)
+  printf '%s\n' "$graph" | grep -Fq 'module.files_root.hubspot_file.this (expand)" -> "[root] module.files_root.hubspot_file_folder.this (expand)'
+  printf '%s\n' "$graph" | grep -Fq 'module.files_brand.hubspot_file.this (expand)" -> "[root] module.files_brand.hubspot_file_folder.this (expand)'
+  printf '%s\n' "$graph" | grep -Eq 'module.files_brand.var.parent_folder_id \(expand(, input)?\)" -> "\[root\] module.files_root.output.folder_ids \(expand\)'
+
+  cumulative_graph=$(TF_CLI_CONFIG_FILE="$root/.demo/local-$engine-scratch/cli.tfrc" "$engine" -chdir="$root" graph -type=plan)
+  printf '%s\n' "$cumulative_graph" | grep -Fq 'module.files_root.hubspot_file.this (expand)" -> "[root] module.files_root.hubspot_file_folder.this (expand)'
+  printf '%s\n' "$cumulative_graph" | grep -Fq 'module.files_brand.hubspot_file.this (expand)" -> "[root] module.files_brand.hubspot_file_folder.this (expand)'
+  printf '%s\n' "$cumulative_graph" | grep -Eq 'module.files_brand.var.parent_folder_id \(expand(, input)?\)" -> "\[root\] module.files_root.output.folder_ids \(expand\)'
+  printf '%s\n' "$cumulative_graph" | grep -Eq 'module.crm_user_profiles.var.profiles \(expand(, input)?\)" -> "\[root\] module.account_memberships.output.ids \(expand\)'
+done
 ENGINE=tofu "$root/scripts/demo" local test
 ENGINE=terraform "$root/scripts/demo" local test
 actionlint
+
+grep -q 'version = "= 0.7.0"' "$root/versions.tf" || { echo "the cumulative demo must pin provider v0.7.0" >&2; exit 1; }
+grep -q 'module "forms"' "$root/forms.tf" || { echo "the cumulative demo is missing its Forms module" >&2; exit 1; }
+grep -q 'northstar_contact_form_id' "$root/outputs.tf" || { echo "the cumulative demo is missing its generated Form ID output" >&2; exit 1; }
+grep -q 'northstar_file_folder_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable generated folder ID outputs" >&2; exit 1; }
+grep -q 'northstar_file_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable generated file ID outputs" >&2; exit 1; }
+grep -q 'northstar_account_membership_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable canonical membership ID outputs" >&2; exit 1; }
+grep -q 'northstar_crm_user_profile_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable canonical CRM profile ID outputs" >&2; exit 1; }
+grep -q 'northstar_product_ids' "$root/outputs.tf" || { echo "the cumulative demo is missing stable generated Product ID outputs" >&2; exit 1; }
+grep -q 'module.forms.hubspot_form_definition.this' "$root/scripts/demo" || { echo "Northstar lifecycle skipped exact-ID Form adoption" >&2; exit 1; }
+grep -q 'module.files_root.hubspot_file.this' "$root/scripts/demo" || { echo "Northstar lifecycle skipped exact-ID Managed file adoption" >&2; exit 1; }
+grep -q 'verify-files-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped Files terminal cleanup proof" >&2; exit 1; }
+grep -q 'verify-form-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped terminal Form cleanup proof" >&2; exit 1; }
+grep -q 'verify-membership-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped membership cleanup proof" >&2; exit 1; }
+grep -q 'verify-profile-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped CRM profile terminal proof" >&2; exit 1; }
+grep -q 'verify-product-terminal' "$root/scripts/demo" || { echo "Northstar lifecycle skipped Product terminal cleanup proof" >&2; exit 1; }
+grep -q 'HUBSPOT_DEMO_EXPECTED_COMMIT' "$root/scripts/demo" || { echo "Northstar lifecycle skipped exact demo provenance" >&2; exit 1; }
+
+for engine in tofu terraform; do
+  lock="$root/locks/$engine/.terraform.lock.hcl"
+  test -f "$lock" || { echo "committed $engine registry lock is missing" >&2; exit 1; }
+  # Registry locks stay on the last provider release captured by this branch;
+  # v0.6.0 locks are generated only after immutable publication.
+  grep -q 'version     = "0.4.0"' "$lock"
+  test "$(grep -c '"h1:' "$lock")" = 13 || { echo "$engine registry lock must cover all 13 release platforms" >&2; exit 1; }
+done
+grep -q 'provider "registry.opentofu.org/jackemcpherson/hubspot"' "$root/locks/tofu/.terraform.lock.hcl"
+grep -q 'provider "registry.terraform.io/jackemcpherson/hubspot"' "$root/locks/terraform/.terraform.lock.hcl"

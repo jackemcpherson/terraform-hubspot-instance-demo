@@ -2,7 +2,7 @@ output "managed_schema" {
   description = "Managed HubSpot CRM groups and property names by object type."
   value = {
     for object_type, schema in local.schemas : object_type => {
-      group      = module.crm_schema[object_type].group
+      groups     = module.crm_schema[object_type].groups
       properties = module.crm_schema[object_type].properties
     }
   }
@@ -25,4 +25,80 @@ output "builtin_email_property" {
     label      = data.hubspot_property_definition.builtin_email.label
     field_type = data.hubspot_property_definition.builtin_email.field_type
   }
+}
+
+output "northstar_form_ids" {
+  description = "Generated HubSpot form IDs keyed by stable local form identity."
+  value       = module.forms.ids
+}
+
+output "northstar_contact_form_id" {
+  description = "Generated identity of the stable-keyed Northstar contact form."
+  value       = module.forms.ids["contact_us"]
+}
+
+output "northstar_account_membership_ids" {
+  description = "Canonical HubSpot Settings user IDs keyed by stable Northstar membership identity."
+  value       = module.account_memberships.ids
+}
+
+output "northstar_operator_membership_id" {
+  description = "Canonical Settings user ID of the stable-keyed Northstar operator membership."
+  value       = module.account_memberships.ids["northstar_operator"]
+}
+
+output "northstar_crm_user_profile_ids" {
+  description = "Canonical CRM user IDs keyed by stable Northstar profile identity."
+  value       = module.crm_user_profiles.ids
+}
+
+output "northstar_operator_crm_profile_id" {
+  description = "Canonical account-specific CRM user ID for the Northstar operator profile."
+  value       = module.crm_user_profiles.ids["northstar_operator"]
+}
+
+output "northstar_product_ids" {
+  description = "Generated HubSpot Product IDs keyed by stable Northstar Product identity."
+  value       = module.product_definitions.ids
+}
+
+output "northstar_support_product_id" {
+  description = "Generated identity of the stable-keyed Northstar support Product, or null while refresh reconciles archival."
+  value       = try(module.product_definitions.ids["northstar_support"], null)
+}
+
+output "northstar_file_folder_ids" {
+  description = "Generated HubSpot File folder IDs keyed by stable Northstar folder identity."
+  value = {
+    brand     = module.files_root.folder_ids["brand"]
+    downloads = module.files_brand.folder_ids["downloads"]
+  }
+}
+
+output "northstar_file_ids" {
+  description = "Generated HubSpot Managed file IDs keyed by stable Northstar file identity."
+  value = {
+    private_readme = module.files_root.file_ids["private_readme"]
+    public_logo    = module.files_brand.file_ids["public_logo"]
+  }
+}
+
+output "northstar_brand_folder_id" {
+  description = "Generated identity of the stable-keyed Northstar brand folder."
+  value       = module.files_root.folder_ids["brand"]
+}
+
+output "northstar_downloads_folder_id" {
+  description = "Generated identity of the stable-keyed Northstar downloads folder."
+  value       = module.files_brand.folder_ids["downloads"]
+}
+
+output "northstar_private_file_id" {
+  description = "Generated identity of the stable-keyed Northstar private Managed file."
+  value       = module.files_root.file_ids["private_readme"]
+}
+
+output "northstar_public_file_id" {
+  description = "Generated identity of the stable-keyed Northstar public non-indexable Managed file."
+  value       = module.files_brand.file_ids["public_logo"]
 }
