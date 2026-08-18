@@ -3,7 +3,7 @@ module "crm_schema" {
   source   = "./modules/crm-schema"
 
   object_type = each.key
-  group       = each.value.group
+  groups      = each.value.groups
   properties  = each.value.properties
 }
 

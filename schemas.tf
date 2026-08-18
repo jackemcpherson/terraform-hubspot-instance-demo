@@ -1,16 +1,17 @@
 locals {
   schemas = {
     contacts = {
-      group = {
-        name          = "ns_customer_context"
-        label         = "Northstar customer context"
-        display_order = 100
+      groups = {
+        ns_customer_context = {
+          label         = "Northstar customer context"
+          display_order = 100
+        }
       }
       properties = {
         ns_buyer_role = {
           label         = "Buyer role"
-          type          = "enumeration"
-          field_type    = "select"
+          group         = "ns_customer_context"
+          kind          = "select"
           description   = "Role this contact plays in a Northstar buying decision."
           display_order = 110
           options = {
@@ -22,8 +23,8 @@ locals {
         }
         ns_onboarding_status = {
           label         = "Onboarding status"
-          type          = "enumeration"
-          field_type    = "select"
+          group         = "ns_customer_context"
+          kind          = "select"
           description   = "Current customer onboarding milestone."
           display_order = 120
           options = {
@@ -36,8 +37,7 @@ locals {
         }
         ns_last_success_review = {
           label         = "Last success review"
-          type          = "date"
-          field_type    = "date"
+          group         = "ns_customer_context"
           description   = "Date of the most recent customer success review."
           display_order = 130
         }
@@ -45,16 +45,17 @@ locals {
     }
 
     companies = {
-      group = {
-        name          = "ns_account_profile"
-        label         = "Northstar account profile"
-        display_order = 200
+      groups = {
+        ns_account_profile = {
+          label         = "Northstar account profile"
+          display_order = 200
+        }
       }
       properties = {
         ns_account_tier = {
           label         = "Account tier"
-          type          = "enumeration"
-          field_type    = "select"
+          group         = "ns_account_profile"
+          kind          = "select"
           description   = "Service tier used for account planning."
           display_order = 210
           options = {
@@ -65,8 +66,7 @@ locals {
         }
         ns_renewal_date = {
           label         = "Renewal date"
-          type          = "date"
-          field_type    = "date"
+          group         = "ns_account_profile"
           description   = "Current contract renewal date."
           display_order = 220
         }
@@ -74,16 +74,17 @@ locals {
     }
 
     deals = {
-      group = {
-        name          = "ns_commercial_context"
-        label         = "Northstar commercial context"
-        display_order = 300
+      groups = {
+        ns_commercial_context = {
+          label         = "Northstar commercial context"
+          display_order = 300
+        }
       }
       properties = {
         ns_commercial_motion = {
           label         = "Commercial motion"
-          type          = "enumeration"
-          field_type    = "select"
+          group         = "ns_commercial_context"
+          kind          = "select"
           description   = "Commercial reason for the deal."
           display_order = 310
           options = {
@@ -94,8 +95,8 @@ locals {
         }
         ns_implementation_risk = {
           label         = "Implementation risk"
-          type          = "enumeration"
-          field_type    = "radio"
+          group         = "ns_commercial_context"
+          kind          = "select"
           description   = "Current delivery risk assessed during qualification."
           display_order = 320
           options = {
@@ -108,16 +109,17 @@ locals {
     }
 
     tickets = {
-      group = {
-        name          = "ns_support_context"
-        label         = "Northstar support context"
-        display_order = 400
+      groups = {
+        ns_support_context = {
+          label         = "Northstar support context"
+          display_order = 400
+        }
       }
       properties = {
         ns_support_priority = {
           label         = "Support priority"
-          type          = "enumeration"
-          field_type    = "radio"
+          group         = "ns_support_context"
+          kind          = "select"
           description   = "Northstar's authored priority classification for the ticket."
           display_order = 410
           options = {
@@ -128,15 +130,13 @@ locals {
         }
         ns_support_summary = {
           label         = "Support summary"
-          type          = "string"
-          field_type    = "textarea"
+          group         = "ns_support_context"
           description   = "Short operational summary maintained by Northstar support."
           display_order = 420
         }
         ns_response_due_at = {
           label         = "Response due at"
-          type          = "datetime"
-          field_type    = "date"
+          group         = "ns_support_context"
           description   = "Target time for the next Northstar support response."
           display_order = 430
         }
