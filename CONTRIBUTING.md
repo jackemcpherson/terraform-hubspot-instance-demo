@@ -10,6 +10,10 @@ Install the repository's exact toolchain versions, which `make check` verifies:
 - ShellCheck 0.11.0
 - actionlint 1.7.12
 
+CI and local checks read Go from the checked-out provider's `go.mod` toolchain
+and engine pins from `.opentofu-version` and `.terraform-version`. Keep these
+sources exact; dependency automation updates them instead of separate CI pins.
+
 Then run:
 
 ```sh
