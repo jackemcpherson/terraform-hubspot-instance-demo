@@ -23,11 +23,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Check out exact v0.7.0 provider candidate
+      - name: Check out exact v0.8.0 provider candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: jackemcpherson/terraform-provider-hubspot
-          ref: e0b3c7577b348628bcbecf262c4010502e352da9
+          ref: 3d3812f8b6745a90267e91c1e29886f946af2f19
           path: .provider
           persist-credentials: false
       - name: Set up Go

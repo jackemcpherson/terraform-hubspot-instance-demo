@@ -102,3 +102,23 @@ output "northstar_public_file_id" {
   description = "Generated identity of the stable-keyed Northstar public non-indexable Managed file."
   value       = module.files_brand.file_ids["public_logo"]
 }
+
+output "northstar_contact_segment_ids" {
+  description = "Generated HubSpot ILS list IDs keyed by stable Northstar Contact segment identity."
+  value       = module.contact_segments.ids
+}
+
+output "northstar_all_contacts_segment_id" {
+  description = "Generated identity of the stable-keyed manual Northstar Contact segment."
+  value       = module.contact_segments.ids["all_contacts"]
+}
+
+output "northstar_completed_onboarding_segment_id" {
+  description = "Generated identity of the stable-keyed dynamic Northstar Contact segment."
+  value       = module.contact_segments.ids["completed_onboarding"]
+}
+
+output "northstar_contactable_snapshot_segment_id" {
+  description = "Generated identity of the stable-keyed snapshot Northstar Contact segment."
+  value       = module.contact_segments.ids["contactable_snapshot"]
+}

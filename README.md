@@ -1,11 +1,12 @@
 # Northstar HubSpot CRM Demo
 
 This repository is a realistic consumer of
-`jackemcpherson/hubspot` `v0.7.0`. Its cumulative root manages the CRM property
+`jackemcpherson/hubspot` `v0.8.0`. Its cumulative root manages the CRM property
 schema, one stable-keyed contact Form definition, two explicit File folder
 levels, two stable-keyed Managed files, one guarded account membership, and its
-separate CRM user profile, and one standard Product definition for Northstar
-Cloud, a fictional B2B software company, in a disposable HubSpot Free portal.
+separate CRM user profile, one standard Product definition, and three Contact
+segment definitions for Northstar Cloud, a fictional B2B software company, in a
+disposable HubSpot Free portal.
 
 The desired state contains four property groups, ten non-sensitive properties
 across contacts, companies, deals, and tickets, one `ns_contact_us` form, and
@@ -13,7 +14,8 @@ private plus public non-indexable tiny inert files under explicit generated
 folder IDs, one caller-supplied account membership with welcome email disabled,
 and selected CRM profile properties joined through that membership's canonical
 Settings ID, plus one `ns_support_annual` Product with an exact decimal price,
-cost, and annual recurrence.
+cost, and annual recurrence, and manual, dynamic, and snapshot Contact segment
+definitions.
 Ten properties is a deliberate
 fixture size, not provider admission control or a claimed API-created-property
 limit. Remote create responses remain authoritative.
@@ -53,6 +55,16 @@ numeric ID is the remote and import identity; SKU and name are managed values,
 never lookup keys. Null cost or recurrence remains unmanaged and empty string
 clears it. Equivalent remote decimal spelling does not trigger a write.
 
+The `all_contacts`, `completed_onboarding`, and `contactable_snapshot` Contact
+segment keys are durable local identity. HubSpot's generated ILS list ID is the
+remote and import identity; names are managed values, never lookup keys. The
+manual segment has no filters. The dynamic segment matches the managed
+`ns_onboarding_status` select property. The snapshot excludes one address on the
+built-in `email` text property. The demo manages definitions only, never
+memberships or Contact record values. Lifecycle runs append a run- and
+engine-scoped `northstar_contact_segment_label` to every name, so one engine
+never recreates a name that another run's retained tombstone may still hold.
+
 The cumulative root and Files example under `examples/files-configuration`
 compose two hierarchy levels through generated `folder_ids`, with one private
 file and one public non-indexable file. Source paths are sensitive, reviewed
@@ -86,7 +98,8 @@ membership plus the exact `crm.objects.users.read` and
 `crm.objects.users.write` pair for the CRM profile, in addition to the
 cumulative CRM schema, Forms, and Files scopes. Product management needs exactly
 `crm.objects.products.read` and `crm.objects.products.write`, not the legacy
-`e-commerce` scope.
+`e-commerce` scope. Contact segment management needs exactly `crm.lists.read`
+and `crm.lists.write`.
 
 Then run:
 
@@ -100,7 +113,8 @@ make output
 `make apply` consumes the exact plan created by `make plan`. It does not create
 a replacement plan.
 Open HubSpot property, Forms, File Manager, and Products settings after apply
-and filter for `ns_` to show cumulative managed configuration.
+and filter for `ns_` to show cumulative managed configuration. Open Segments and
+filter for `Northstar` to show the Contact segment definitions.
 
 The provider requirement omits a registry hostname. OpenTofu resolves
 `registry.opentofu.org/jackemcpherson/hubspot`. Terraform resolves
@@ -117,8 +131,8 @@ ENGINE=terraform ./scripts/demo local apply
 
 1. Open `schemas.tf` to show the model and reusable module.
 2. Run `make plan` to propose four groups, ten properties, one contact form, two
-   folders, two Managed files, one account membership, its CRM profile, and one
-   Product definition.
+   folders, two Managed files, one account membership, its CRM profile, one
+   Product definition, and three Contact segment definitions.
 3. Run `make apply` to create the planned cumulative configuration.
 4. Open HubSpot property, Forms, File Manager, and Products settings and filter
    for `ns_`.
@@ -150,10 +164,31 @@ retained values remain.
 Product teardown archives its exact generated ID, proves active absence, and
 verifies the same archived identity. HubSpot may retain the tombstone for 90
 days; the provider does not restore or purge it.
+Contact segment teardown deletes each exact ILS list ID and verifies the same
+tombstoned identity. HubSpot retains the tombstone for up to 90 days; the
+provider never purges it. Restoring it requires an exact-ID import.
+
+## Lifecycle Journey
+
+Provider maintenance runs these phases with OpenTofu and then Terraform:
+`plan`, `apply`, `verify`, `drift`, `repair`, `revise`, `refresh`, `adopt`,
+`verify`, `destroy-plan`, and `destroy-apply`. For Contact segments:
+
+- `drift` renames all three definitions out of band and changes the dynamic
+  filter. `repair` applies the reviewed plan.
+- `revise` renames every definition in place and changes the snapshot filter,
+  which replaces it. The manual and dynamic IDs must survive. The old snapshot
+  ID must read back as the same tombstone. A marker under `.demo/` keeps the
+  rest of that engine's journey on the revised definitions until destroy.
+- `refresh` tombstones the dynamic definition out of band. Refresh keeps it in
+  state and apply restores the same ID.
+- `adopt` tombstones the manual definition, imports all three by exact ID, and
+  restores the tombstoned one under the same ID.
+- `destroy-apply` reads every exact tombstone before terminal cleanup proof.
 
 ## Published Release
 
-After `v0.7.0` is available from both registries, regenerate both committed
+After `v0.8.0` is available from both registries, regenerate both committed
 registry locks and use the exact committed pin rather than the local development
 override:
 
@@ -185,7 +220,7 @@ ENGINE=terraform make registry-destroy-apply
 
 ### Release Checklist
 
-1. Publish provider `v0.7.0` and confirm both public registries list it.
+1. Publish provider `v0.8.0` and confirm both public registries list it.
 2. Run `make registry-init` and `ENGINE=terraform make registry-init`, then
    review each selected provider source and checksum set.
 3. Commit both registry-generated files under `locks/` before applying.
@@ -199,11 +234,14 @@ folders, and Managed files by generated IDs from stable module outputs, and
 imports the membership through the explicit `email:` form before storing its
 canonical Settings ID, then imports the profile through the explicit
 `membership:` form before storing its canonical CRM ID, and imports the Product
-only by its exact generated ID. When no state output exists for the other generated
+and Contact segments only by their exact generated IDs. When no state output exists for the other generated
 identities, supply `HUBSPOT_NORTHSTAR_FORM_ID`,
 `HUBSPOT_NORTHSTAR_BRAND_FOLDER_ID`, `HUBSPOT_NORTHSTAR_DOWNLOADS_FOLDER_ID`,
 `HUBSPOT_NORTHSTAR_PRIVATE_FILE_ID`, and `HUBSPOT_NORTHSTAR_PUBLIC_FILE_ID` from
 the protected handoff. Supply `HUBSPOT_NORTHSTAR_PRODUCT_ID` for Product
+adoption and `HUBSPOT_NORTHSTAR_ALL_CONTACTS_SEGMENT_ID`,
+`HUBSPOT_NORTHSTAR_COMPLETED_ONBOARDING_SEGMENT_ID`, and
+`HUBSPOT_NORTHSTAR_CONTACTABLE_SNAPSHOT_SEGMENT_ID` for Contact segment
 adoption when state output is unavailable. The script never discovers
 configuration by name, SKU, path, URL, or search. The command requires an empty
 plan before reviewed teardown.

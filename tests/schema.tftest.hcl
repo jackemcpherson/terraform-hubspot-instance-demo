@@ -40,6 +40,12 @@ mock_provider "hubspot" {
     }
   }
 
+  mock_resource "hubspot_contact_segment" {
+    defaults = {
+      id = "80001"
+    }
+  }
+
   mock_data "hubspot_property_definition" {
     defaults = {
       id         = "contacts/email"
@@ -59,7 +65,9 @@ run "applies_cumulative_configuration" {
   command = apply
 
   variables {
-    northstar_membership_email = "northstar-operator@example.com"
+    northstar_membership_email                        = "northstar-operator@example.com"
+    northstar_contact_segment_label                   = ""
+    northstar_contact_segment_snapshot_excluded_email = "suppressed@example.com"
   }
 
   assert {
@@ -74,6 +82,42 @@ run "applies_cumulative_configuration" {
       output.northstar_product_ids == module.product_definitions.ids
     )
     error_message = "The cumulative demo must expose one stable-keyed standard Product definition."
+  }
+
+  assert {
+    condition = (
+      toset(keys(module.contact_segments.ids)) == toset(["all_contacts", "completed_onboarding", "contactable_snapshot"]) &&
+      output.northstar_contact_segment_ids == module.contact_segments.ids &&
+      output.northstar_all_contacts_segment_id == module.contact_segments.ids["all_contacts"] &&
+      output.northstar_completed_onboarding_segment_id == module.contact_segments.ids["completed_onboarding"] &&
+      output.northstar_contactable_snapshot_segment_id == module.contact_segments.ids["contactable_snapshot"]
+    )
+    error_message = "The cumulative demo must expose stable-keyed manual, dynamic, and snapshot Contact segment IDs."
+  }
+
+  assert {
+    condition = (
+      { for key, definition in local.northstar_contact_segments : key => definition.processing_type } == {
+        all_contacts         = "manual"
+        completed_onboarding = "dynamic"
+        contactable_snapshot = "snapshot"
+      } &&
+      local.northstar_contact_segments["all_contacts"].name == "Northstar all contacts" &&
+      local.northstar_contact_segments["contactable_snapshot"].name == "Northstar contactable snapshot" &&
+      local.northstar_contact_segments["contactable_snapshot"].filter_groups[0].filters[0].value == "suppressed@example.com"
+    )
+    error_message = "Without a run label the demo must use the plain Northstar Contact segment names."
+  }
+
+  assert {
+    condition = alltrue(flatten([
+      for definition in values(local.northstar_contact_segments) : [
+        for group in definition.filter_groups : [
+          for filter in group.filters : contains(["email", "ns_onboarding_status"], filter.property)
+        ]
+      ]
+    ]))
+    error_message = "Contact segment predicates must reference existing Contact text and select properties only."
   }
 
   assert {
@@ -144,4 +188,35 @@ run "bounds_protected_files_names_for_live_search" {
     )
     error_message = "Protected Northstar Files names must fit the live search API's 20-character name limit."
   }
+}
+
+run "scopes_contact_segment_names_and_revision" {
+  command = plan
+
+  variables {
+    northstar_membership_email                        = "northstar-operator@example.com"
+    northstar_contact_segment_label                   = "ns_1a2b_tofu_revised"
+    northstar_contact_segment_snapshot_excluded_email = "suppressed-revised@example.com"
+  }
+
+  assert {
+    condition = (
+      local.northstar_contact_segments["all_contacts"].name == "Northstar all contacts ns_1a2b_tofu_revised" &&
+      local.northstar_contact_segments["completed_onboarding"].name == "Northstar completed onboarding ns_1a2b_tofu_revised" &&
+      local.northstar_contact_segments["contactable_snapshot"].name == "Northstar contactable snapshot ns_1a2b_tofu_revised" &&
+      local.northstar_contact_segments["contactable_snapshot"].filter_groups[0].filters[0].value == "suppressed-revised@example.com"
+    )
+    error_message = "A run label must scope every Contact segment name and the revision must change the snapshot filter."
+  }
+}
+
+run "rejects_unbounded_contact_segment_label" {
+  command = plan
+
+  variables {
+    northstar_membership_email      = "northstar-operator@example.com"
+    northstar_contact_segment_label = "tofu revised"
+  }
+
+  expect_failures = [var.northstar_contact_segment_label]
 }
