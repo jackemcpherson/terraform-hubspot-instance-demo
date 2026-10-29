@@ -36,15 +36,37 @@ test "$northstar_membership_email" = "$(printf '%s' "$northstar_membership_email
 TF_VAR_northstar_membership_email=$northstar_membership_email
 export TF_VAR_northstar_membership_email
 
+# Contact segment names carry the run prefix and engine so that one engine leg
+# never recreates a name that another leg's retained tombstone may still hold.
+# The revise phase renames every segment and replaces the snapshot; its marker
+# keeps the rest of this engine's journey on the revised definitions.
+segment_revision_marker="$root/.demo/$mode-$engine-segment-revision"
+use_segment_revision() {
+  if [ "$1" = 1 ]; then
+    TF_VAR_northstar_contact_segment_label="${northstar_files_prefix}${engine}_revised"
+    TF_VAR_northstar_contact_segment_snapshot_excluded_email=suppressed-revised@example.com
+  else
+    TF_VAR_northstar_contact_segment_label="${northstar_files_prefix}${engine}"
+    TF_VAR_northstar_contact_segment_snapshot_excluded_email=suppressed@example.com
+  fi
+  export TF_VAR_northstar_contact_segment_label TF_VAR_northstar_contact_segment_snapshot_excluded_email
+}
+if [ -f "$segment_revision_marker" ]; then
+  use_segment_revision 1
+else
+  use_segment_revision 0
+fi
+
 case "$command" in
   plan|apply) artifact=apply ;;
   drift|repair) artifact=drift ;;
   refresh) artifact=refresh ;;
+  revise) artifact=revise ;;
   destroy-plan|destroy-apply) artifact=destroy ;;
   *) artifact=scratch ;;
 esac
 case "$command" in
-  plan|apply|verify|drift|repair|refresh|adopt|destroy-plan|destroy-apply)
+  plan|apply|verify|drift|repair|revise|refresh|adopt|destroy-plan|destroy-apply)
     test -n "${HUBSPOT_NORTHSTAR_MEMBERSHIP_EMAIL:-}" || {
       echo "HUBSPOT_NORTHSTAR_MEMBERSHIP_EMAIL is required for live Northstar lifecycle commands" >&2
       exit 1
@@ -77,12 +99,12 @@ verify_provenance() {
 }
 
 case "$command" in
-  plan|apply|verify|drift|repair|refresh|adopt|destroy-plan|destroy-apply) verify_provenance ;;
+  plan|apply|verify|drift|repair|revise|refresh|adopt|destroy-plan|destroy-apply) verify_provenance ;;
 esac
 
 if [ "${HUBSPOT_PORTAL_LOCK_HELD:-}" != 1 ]; then
   case "$command" in
-    plan|apply|drift|repair|refresh|adopt|destroy-plan|destroy-apply|verify)
+    plan|apply|drift|repair|revise|refresh|adopt|destroy-plan|destroy-apply|verify)
       mkdir "$lock_dir" 2>/dev/null || { echo "HubSpot configuration portal is already in use: $lock_dir" >&2; exit 1; }
       trap 'rmdir "$lock_dir"' EXIT HUP INT TERM
       ;;
@@ -95,7 +117,7 @@ build_local_provider() {
   (
     cd "$provider_repo"
     CGO_ENABLED=0 GOTOOLCHAIN=local go build -trimpath \
-      -ldflags '-X main.version=0.7.0-local' \
+      -ldflags '-X main.version=0.8.0-local' \
       -o "$provider_binary" .
   )
 }
@@ -204,10 +226,13 @@ northstar_numeric_id() {
     HUBSPOT_NORTHSTAR_DOWNLOADS_FOLDER_ID) id=${HUBSPOT_NORTHSTAR_DOWNLOADS_FOLDER_ID:-} ;;
     HUBSPOT_NORTHSTAR_PRIVATE_FILE_ID) id=${HUBSPOT_NORTHSTAR_PRIVATE_FILE_ID:-} ;;
     HUBSPOT_NORTHSTAR_PUBLIC_FILE_ID) id=${HUBSPOT_NORTHSTAR_PUBLIC_FILE_ID:-} ;;
-    *) echo "unsupported Northstar Files fallback" >&2; exit 1 ;;
+    HUBSPOT_NORTHSTAR_ALL_CONTACTS_SEGMENT_ID) id=${HUBSPOT_NORTHSTAR_ALL_CONTACTS_SEGMENT_ID:-} ;;
+    HUBSPOT_NORTHSTAR_COMPLETED_ONBOARDING_SEGMENT_ID) id=${HUBSPOT_NORTHSTAR_COMPLETED_ONBOARDING_SEGMENT_ID:-} ;;
+    HUBSPOT_NORTHSTAR_CONTACTABLE_SNAPSHOT_SEGMENT_ID) id=${HUBSPOT_NORTHSTAR_CONTACTABLE_SNAPSHOT_SEGMENT_ID:-} ;;
+    *) echo "unsupported Northstar generated-ID fallback" >&2; exit 1 ;;
   esac
   printf '%s\n' "$id" | grep -Eq '^[1-9][0-9]*$' || {
-    echo "$fallback_name is required to adopt the generated Files identity without lookup" >&2
+    echo "$fallback_name is required to adopt the generated identity without lookup" >&2
     exit 1
   }
   printf '%s\n' "$id"
@@ -217,6 +242,9 @@ northstar_brand_folder_id() { northstar_numeric_id northstar_brand_folder_id HUB
 northstar_downloads_folder_id() { northstar_numeric_id northstar_downloads_folder_id HUBSPOT_NORTHSTAR_DOWNLOADS_FOLDER_ID; }
 northstar_private_file_id() { northstar_numeric_id northstar_private_file_id HUBSPOT_NORTHSTAR_PRIVATE_FILE_ID; }
 northstar_public_file_id() { northstar_numeric_id northstar_public_file_id HUBSPOT_NORTHSTAR_PUBLIC_FILE_ID; }
+northstar_manual_segment_id() { northstar_numeric_id northstar_all_contacts_segment_id HUBSPOT_NORTHSTAR_ALL_CONTACTS_SEGMENT_ID; }
+northstar_dynamic_segment_id() { northstar_numeric_id northstar_completed_onboarding_segment_id HUBSPOT_NORTHSTAR_COMPLETED_ONBOARDING_SEGMENT_ID; }
+northstar_snapshot_segment_id() { northstar_numeric_id northstar_contactable_snapshot_segment_id HUBSPOT_NORTHSTAR_CONTACTABLE_SNAPSHOT_SEGMENT_ID; }
 
 northstar_product_id() {
   if id=$("$engine" -chdir="$root" output -raw northstar_support_product_id 2>/dev/null) && printf '%s\n' "$id" | grep -Eq '^[1-9][0-9]*$'; then
@@ -275,6 +303,19 @@ verify_northstar_crm_profile() {
 
 verify_northstar_product() {
   run_northstar_helper verify-product "$(northstar_product_id)"
+}
+
+verify_northstar_contact_segments() {
+  run_northstar_helper verify-contact-segments \
+    "$(northstar_manual_segment_id)" \
+    "$(northstar_dynamic_segment_id)" \
+    "$(northstar_snapshot_segment_id)" \
+    "$TF_VAR_northstar_contact_segment_snapshot_excluded_email" \
+    "$TF_VAR_northstar_contact_segment_label"
+}
+
+require_same_segment_id() {
+  test "$1" = "$2" || { echo "Northstar $3 Contact segment did not keep its exact generated identity" >&2; exit 1; }
 }
 
 northstar_form_id() {
@@ -351,6 +392,7 @@ case "$command" in
     "$engine" -chdir="$root/modules/account-membership" test
     "$engine" -chdir="$root/modules/crm-user-profile" test
     "$engine" -chdir="$root/modules/product-definition" test
+    "$engine" -chdir="$root/modules/contact-segment-definition" test
     "$engine" -chdir="$root/examples/form-definition" get >/dev/null
     "$engine" -chdir="$root/examples/files-configuration" get >/dev/null
     "$engine" -chdir="$root/examples/files-configuration" test
@@ -384,6 +426,7 @@ case "$command" in
     verify_northstar_membership
     verify_northstar_crm_profile
     verify_northstar_product
+    verify_northstar_contact_segments
     ;;
   drift)
     load_hubspot_auth
@@ -393,6 +436,9 @@ case "$command" in
     run_northstar_helper drift-files "$(northstar_public_file_id)"
     run_northstar_helper drift-profile "$(northstar_crm_profile_id)" "$(northstar_membership_id)"
     run_northstar_helper drift-product "$(northstar_product_id)"
+    run_northstar_helper drift-contact-segments \
+      "$(northstar_manual_segment_id)" "$(northstar_dynamic_segment_id)" "$(northstar_snapshot_segment_id)" \
+      "$TF_VAR_northstar_contact_segment_label"
     set +e
     "$engine" -chdir="$root" plan -detailed-exitcode -input=false -out="$plan"
     plan_exit_code=$?
@@ -414,6 +460,10 @@ case "$command" in
       echo "Northstar drift plan skipped the stable-keyed Product definition" >&2
       exit 1
     }
+    "$engine" -chdir="$root" show -json "$plan" | grep -q 'module.contact_segments.hubspot_contact_segment.this' || {
+      echo "Northstar drift plan skipped the stable-keyed Contact segment definitions" >&2
+      exit 1
+    }
     if [ "$mode" = local ]; then
       (cd "$bundle" && shasum -a 256 "bin/terraform-provider-hubspot" >"$(basename "$provider_digest")")
     fi
@@ -428,12 +478,47 @@ case "$command" in
     verify_northstar_membership
     verify_northstar_crm_profile
     verify_northstar_product
+    verify_northstar_contact_segments
+    ;;
+  revise)
+    load_hubspot_auth
+    test ! -f "$segment_revision_marker" || { echo "Northstar Contact segments are already revised for this engine journey" >&2; exit 1; }
+    mkdir -p "$bundle"
+    manual_segment_id=$(northstar_manual_segment_id)
+    dynamic_segment_id=$(northstar_dynamic_segment_id)
+    snapshot_segment_id=$(northstar_snapshot_segment_id)
+    use_segment_revision 1
+    set +e
+    "$engine" -chdir="$root" plan -detailed-exitcode -input=false -out="$plan"
+    plan_exit_code=$?
+    set -e
+    test "$plan_exit_code" = 2 || { echo "Northstar revise phase did not plan the Contact segment revision" >&2; exit 1; }
+    "$engine" -chdir="$root" show -json "$plan" | grep -q 'module.contact_segments.hubspot_contact_segment.this' || {
+      echo "Northstar revise plan skipped the stable-keyed Contact segment definitions" >&2
+      exit 1
+    }
+    "$engine" -chdir="$root" apply -input=false "$plan"
+    : >"$segment_revision_marker"
+    require_empty_plan_after_convergence
+    # Renames update in place; the snapshot filter change replaces the
+    # definition and must leave the old exact identity tombstoned.
+    require_same_segment_id "$(northstar_manual_segment_id)" "$manual_segment_id" manual
+    require_same_segment_id "$(northstar_dynamic_segment_id)" "$dynamic_segment_id" dynamic
+    test "$(northstar_snapshot_segment_id)" != "$snapshot_segment_id" || {
+      echo "Northstar snapshot Contact segment filter change did not replace the definition" >&2
+      exit 1
+    }
+    run_northstar_helper verify-contact-segment-tombstone "$snapshot_segment_id"
+    verify_northstar_contact_segments
     ;;
   refresh)
     load_hubspot_auth
     mkdir -p "$bundle"
     run_northstar_helper archive-for-refresh
     run_northstar_helper archive-product-for-refresh "$(northstar_product_id)"
+    # Refresh keeps the tombstoned dynamic segment in state; apply restores it.
+    dynamic_segment_id=$(northstar_dynamic_segment_id)
+    run_northstar_helper delete-contact-segment-for-refresh "$dynamic_segment_id"
     brand_folder_id=$(northstar_brand_folder_id)
     downloads_folder_id=$(northstar_downloads_folder_id)
     private_file_id=$(northstar_private_file_id)
@@ -472,6 +557,8 @@ case "$command" in
     verify_northstar_membership
     verify_northstar_crm_profile
     verify_northstar_product
+    require_same_segment_id "$(northstar_dynamic_segment_id)" "$dynamic_segment_id" dynamic
+    verify_northstar_contact_segments
     ;;
   output)
     "$engine" -chdir="$root" output
@@ -484,6 +571,11 @@ case "$command" in
     private_file_id=$(northstar_private_file_id)
     public_file_id=$(northstar_public_file_id)
     product_id=$(northstar_product_id)
+    manual_segment_id=$(northstar_manual_segment_id)
+    dynamic_segment_id=$(northstar_dynamic_segment_id)
+    snapshot_segment_id=$(northstar_snapshot_segment_id)
+    # Import the manual segment while tombstoned; the next apply restores it.
+    run_northstar_helper delete-contact-segment-for-refresh "$manual_segment_id"
     adopt_resource 'module.crm_schema["contacts"].hubspot_property_group.this["ns_customer_context"]' 'contacts/ns_customer_context'
     adopt_resource 'module.crm_schema["contacts"].hubspot_property.this["ns_buyer_role"]' 'contacts/ns_buyer_role'
     adopt_resource 'module.crm_schema["contacts"].hubspot_property.this["ns_onboarding_status"]' 'contacts/ns_onboarding_status'
@@ -506,6 +598,9 @@ case "$command" in
     adopt_resource 'module.account_memberships.hubspot_account_membership.this["northstar_operator"]' "email:$northstar_membership_email"
     adopt_resource 'module.crm_user_profiles.hubspot_crm_user_profile.this["northstar_operator"]' "membership:$(northstar_membership_id)"
     adopt_resource 'module.product_definitions.hubspot_product.this["northstar_support"]' "$product_id"
+    adopt_resource 'module.contact_segments.hubspot_contact_segment.this["all_contacts"]' "$manual_segment_id"
+    adopt_resource 'module.contact_segments.hubspot_contact_segment.this["completed_onboarding"]' "$dynamic_segment_id"
+    adopt_resource 'module.contact_segments.hubspot_contact_segment.this["contactable_snapshot"]' "$snapshot_segment_id"
     mkdir -p "$bundle"
     "$engine" -chdir="$root" plan -input=false -out="$plan"
     "$engine" -chdir="$root" apply -input=false "$plan"
@@ -515,6 +610,8 @@ case "$command" in
     verify_northstar_membership
     verify_northstar_crm_profile
     verify_northstar_product
+    require_same_segment_id "$(northstar_manual_segment_id)" "$manual_segment_id" manual
+    verify_northstar_contact_segments
     ;;
   destroy-plan)
     load_hubspot_auth
@@ -530,6 +627,11 @@ case "$command" in
     northstar_membership_id >"$bundle/membership-id"
     northstar_crm_profile_id >"$bundle/crm-profile-id"
     northstar_product_id >"$bundle/product-id"
+    {
+      northstar_manual_segment_id
+      northstar_dynamic_segment_id
+      northstar_snapshot_segment_id
+    } >"$bundle/contact-segment-ids"
     "$engine" -chdir="$root" plan -destroy -input=false -out="$plan"
     "$engine" -chdir="$root" show -json "$plan" | grep -q 'module.forms.hubspot_form_definition.this' || {
       echo "Northstar destroy plan skipped the stable-keyed Form definition" >&2
@@ -557,6 +659,10 @@ case "$command" in
       echo "Northstar destroy plan skipped the stable-keyed Product definition" >&2
       exit 1
     }
+    "$engine" -chdir="$root" show -json "$plan" | grep -q 'module.contact_segments.hubspot_contact_segment.this' || {
+      echo "Northstar destroy plan skipped the stable-keyed Contact segment definitions" >&2
+      exit 1
+    }
     if [ "$mode" = local ]; then
       (cd "$bundle" && shasum -a 256 "bin/terraform-provider-hubspot" >"$(basename "$provider_digest")")
     fi
@@ -570,6 +676,7 @@ case "$command" in
     test -s "$bundle/membership-id" || { echo "reviewed destroy plan is missing its canonical membership identity" >&2; exit 1; }
     test -s "$bundle/crm-profile-id" || { echo "reviewed destroy plan is missing its canonical CRM profile identity" >&2; exit 1; }
     test -s "$bundle/product-id" || { echo "reviewed destroy plan is missing its generated Product identity" >&2; exit 1; }
+    test "$(wc -l <"$bundle/contact-segment-ids" | tr -d ' ')" = 3 || { echo "reviewed destroy plan is missing exact Contact segment identities" >&2; exit 1; }
     form_id=$(cat "$bundle/form-id")
     "$engine" -chdir="$root" apply -input=false "$plan"
     run_northstar_helper verify-form-terminal "$form_id" >"$bundle/form-terminal.json"
@@ -620,9 +727,27 @@ case "$command" in
       echo "Product terminal record exposed a raw identity" >&2
       exit 1
     }
+    manual_segment_id=$(sed -n '1p' "$bundle/contact-segment-ids")
+    dynamic_segment_id=$(sed -n '2p' "$bundle/contact-segment-ids")
+    snapshot_segment_id=$(sed -n '3p' "$bundle/contact-segment-ids")
+    # Read each exact tombstone before terminal cleanup, which would otherwise
+    # delete an identity that destroy left active.
+    for segment_id in "$manual_segment_id" "$dynamic_segment_id" "$snapshot_segment_id"; do
+      run_northstar_helper verify-contact-segment-tombstone "$segment_id"
+    done
+    run_northstar_helper verify-contact-segments-terminal "$manual_segment_id" "$dynamic_segment_id" "$snapshot_segment_id" >"$bundle/contact-segments-terminal.json"
+    test -s "$bundle/contact-segments-terminal.json"
+    grep -q '"terminal":"tombstoned"' "$bundle/contact-segments-terminal.json"
+    grep -q '"active_owned_contact_segments":0' "$bundle/contact-segments-terminal.json"
+    grep -q '"cleanup":"passed"' "$bundle/contact-segments-terminal.json"
+    ! grep -Eq "$manual_segment_id|$dynamic_segment_id|$snapshot_segment_id" "$bundle/contact-segments-terminal.json" || {
+      echo "Contact segment terminal record exposed a raw identity" >&2
+      exit 1
+    }
+    rm -f "$segment_revision_marker"
     ;;
   *)
-    echo "command must be fmt, validate, test, init, plan, apply, verify, drift, repair, refresh, output, adopt, destroy-plan, or destroy-apply" >&2
+    echo "command must be fmt, validate, test, init, plan, apply, verify, drift, repair, revise, refresh, output, adopt, destroy-plan, or destroy-apply" >&2
     exit 1
     ;;
 esac

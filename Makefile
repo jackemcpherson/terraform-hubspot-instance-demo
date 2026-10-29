@@ -1,4 +1,4 @@
-.PHONY: check fmt validate test plan apply verify drift repair refresh adopt output destroy-plan destroy-apply registry-init registry-plan registry-apply registry-verify registry-drift registry-repair registry-refresh registry-adopt registry-output registry-destroy-plan registry-destroy-apply
+.PHONY: check fmt validate test plan apply verify drift repair revise refresh adopt output destroy-plan destroy-apply registry-init registry-plan registry-apply registry-verify registry-drift registry-repair registry-revise registry-refresh registry-adopt registry-output registry-destroy-plan registry-destroy-apply
 
 check:
 	@./scripts/check
@@ -26,6 +26,9 @@ drift:
 
 repair:
 	@./scripts/demo local repair
+
+revise:
+	@./scripts/demo local revise
 
 refresh:
 	@./scripts/demo local refresh
@@ -59,6 +62,9 @@ registry-drift:
 
 registry-repair:
 	@./scripts/demo registry repair
+
+registry-revise:
+	@./scripts/demo registry revise
 
 registry-refresh:
 	@./scripts/demo registry refresh
